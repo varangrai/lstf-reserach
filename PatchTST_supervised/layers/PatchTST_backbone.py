@@ -43,13 +43,15 @@ class PatchTST_backbone(nn.Module):
                                 attn_dropout=attn_dropout, dropout=dropout, act=act, key_padding_mask=key_padding_mask, padding_var=padding_var,
                                 attn_mask=attn_mask, res_attention=res_attention, pre_norm=pre_norm, store_attn=store_attn,
                                 pe=pe, learn_pe=learn_pe, verbose=verbose, **kwargs)
-
+        #BladeFormer
+        self.BladeFormer = ChannelMixing(patch_len, d_model, 1, padding_patch=padding_patch)
         # Head
         self.head_nf = d_model * patch_num
         self.n_vars = c_in
         self.pretrain_head = pretrain_head
         self.head_type = head_type
         self.individual = individual
+
 
         if self.pretrain_head: 
             self.head = self.create_pretrain_head(self.head_nf, c_in, fc_dropout) # custom head passed as a partial func with all its kwargs
@@ -63,12 +65,18 @@ class PatchTST_backbone(nn.Module):
             z = z.permute(0,2,1)
             z = self.revin_layer(z, 'norm')
             z = z.permute(0,2,1)
-            
+
+        #blade
+        z = self.BladeFormer(z)
+        
+
         # do patching
         if self.padding_patch == 'end':
             z = self.padding_patch_layer(z)
         z = z.unfold(dimension=-1, size=self.patch_len, step=self.stride)                   # z: [bs x nvars x patch_num x patch_len]
         z = z.permute(0,1,3,2)                                                              # z: [bs x nvars x patch_len x patch_num]
+        
+        
         
         # model
         z = self.backbone(z)                                                                # z: [bs x nvars x d_model x patch_num]
@@ -85,6 +93,33 @@ class PatchTST_backbone(nn.Module):
         return nn.Sequential(nn.Dropout(dropout),
                     nn.Conv1d(head_nf, vars, 1)
                     )
+
+class ChannelMixing(nn.Module):
+    def __init__(self, patch_len, d_model, n_heads, padding_patch):
+        if padding_patch == 'end': # can be modified to general case
+            self.padding_patch_layer = nn.ReplicationPad1d((0, patch_len)) 
+        self.padding_patch = padding_patch
+        self.transformer = TSTEncoderLayer(q_len=0,d_model = d_model, n_heads = n_heads, res_attention=True)
+        self.W_P = nn.Linear(patch_len, d_model)
+        self.F_P = nn.Linear(d_model, patch_len)
+
+
+    def forward(self , u):                                                                      # z: [bs x nvars x seq_len]
+        if self.padding_patch == 'end':                             
+            u = self.padding_patch_layer(u)
+        u = u.unfold(dimension=-1, size=self.patch_len, step=self.patch_len)                    # z : [bs x nvar x patch_num x patch_len]
+        u = u.permute(0,2,1,3)                                                                  # z : [bs x patch_num x nvar x patch_len]
+        patch_num = u.shape[1]                                                                  # z : [bs x patch_num x nvar x patch_len]
+        u = torch.reshape(u, (u.shape[0]*u.shape[1],u.shape[2],u.shape[3]))                     # z : [bs * patch_num x nvar x patch_len]
+        u = self.W_P.forward(u)                                                                 # z : [bs * patch_num x nvar x d_model]
+        u, attn = self.transformer(u)                                                           # z : [bs * patch_num x nvar x d_model]
+        u = self.F_P.forward(u)                                                                 # z : [bs * patch_num x nvar x patch_len]
+        u = torch.reshape(u, (-1,patch_num,u.shape[-2],u.shape[-1]))                            # z : [bs x patch_num x nvar x patch_len]
+        u = u.permute(0,2,3,1)                                                                  # z : [bs x nvar x patch_num x patch_len]
+        u = torch.reshape(u, (u.shape[0],u.shape[1],u.shape[2]*u.shape[3]))                     # z : [bs x nvar x seq_len]
+        print(attn)
+        return u
+
 
 
 class Flatten_Head(nn.Module):
