@@ -96,6 +96,7 @@ class PatchTST_backbone(nn.Module):
 
 class ChannelMixing(nn.Module):
     def __init__(self, patch_len, d_model, n_heads, padding_patch):
+        super.__init__()
         if padding_patch == 'end': # can be modified to general case
             self.padding_patch_layer = nn.ReplicationPad1d((0, patch_len)) 
         self.padding_patch = padding_patch
