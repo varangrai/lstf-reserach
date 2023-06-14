@@ -4,6 +4,7 @@ import torch
 from exp.exp_main import Exp_Main
 import random
 import numpy as np
+import wandb
 
 parser = argparse.ArgumentParser(description='Autoformer & Transformer family for Time Series Forecasting')
 
@@ -84,7 +85,9 @@ parser.add_argument('--lradj', type=str, default='type3', help='adjust learning 
 parser.add_argument('--pct_start', type=float, default=0.3, help='pct_start')
 parser.add_argument('--use_amp', action='store_true', help='use automatic mixed precision training', default=False)
 
-# GPU
+parser.add_argument('--experiment_name', type=str, default='exp_unamed', help='experiment_name')
+
+# GPU   
 parser.add_argument('--use_gpu', type=bool, default=True, help='use gpu')
 parser.add_argument('--gpu', type=int, default=0, help='gpu')
 parser.add_argument('--use_multi_gpu', action='store_true', help='use multiple gpus', default=False)
@@ -92,6 +95,14 @@ parser.add_argument('--devices', type=str, default='0,1,2,3', help='device ids o
 parser.add_argument('--test_flop', action='store_true', default=False, help='See utils/tools for usage')
 
 args = parser.parse_args()
+
+args_dict = vars(args)
+
+wandb.init(
+    project="PatchTSTS-ChannelMixing",
+    name=args_dict['experiment_name'],
+    config=args_dict,
+)
 
 # random seed
 fix_seed = args.random_seed

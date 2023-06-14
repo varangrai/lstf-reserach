@@ -3,6 +3,7 @@ from exp.exp_basic import Exp_Basic
 from models import Informer, Autoformer, Transformer, DLinear, Linear, NLinear, PatchTST
 from utils.tools import EarlyStopping, adjust_learning_rate, visual, test_params_flop
 from utils.metrics import metric
+import wandb
 
 import numpy as np
 import torch
@@ -129,6 +130,11 @@ class Exp_Main(Exp_Basic):
 
             self.model.train()
             epoch_time = time.time()
+
+            # Log the learning rate
+            current_lr = model_optim.param_groups[0]['lr']
+            wandb.log({'Learning Rate': current_lr}, step=epoch)
+
             for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(train_loader):
                 iter_count += 1
                 model_optim.zero_grad()
@@ -157,6 +163,7 @@ class Exp_Main(Exp_Basic):
                         outputs = outputs[:, -self.args.pred_len:, f_dim:]
                         batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
                         loss = criterion(outputs, batch_y)
+                        wandb.log({'Batch Loss': loss.item()}, step=i+1)
                         train_loss.append(loss.item())
                 else:
                     if 'Linear' in self.args.model or 'TST' in self.args.model:
@@ -172,6 +179,7 @@ class Exp_Main(Exp_Basic):
                     outputs = outputs[:, -self.args.pred_len:, f_dim:]
                     batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
                     loss = criterion(outputs, batch_y)
+                    wandb.log({'Train Batch Loss': loss.item()}, step=i+1)
                     train_loss.append(loss.item())
 
                 if (i + 1) % 100 == 0:
@@ -196,12 +204,26 @@ class Exp_Main(Exp_Basic):
 
             print("Epoch: {} cost time: {}".format(epoch + 1, time.time() - epoch_time))
             train_loss = np.average(train_loss)
+            wandb.log({'Train/Train_Loss': train_loss}, step=epoch+1)
+
             vali_loss = self.vali(vali_data, vali_loader, criterion)
             test_loss = self.vali(test_data, test_loader, criterion)
+
+            wandb.log({'Validation/Epoch_Validation_Loss': vali_loss,
+                   'Test/Epoch_Test_Loss': test_loss}, step=epoch+1)
 
             print("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} Vali Loss: {3:.7f} Test Loss: {4:.7f}".format(
                 epoch + 1, train_steps, train_loss, vali_loss, test_loss))
             early_stopping(vali_loss, self.model, path)
+            
+            
+            if vali_loss < best_vali_loss and (epoch + 1) >= 50:
+                best_vali_loss = vali_loss
+                # Save the best model if validation loss improves
+                best_model_path = f"{path}/best_model_{epoch}_{best_vali_loss}.pth"
+                torch.save(self.model.state_dict(), best_model_path)
+                wandb.save(best_model_path)
+
             if early_stopping.early_stop:
                 print("Early stopping")
                 break
