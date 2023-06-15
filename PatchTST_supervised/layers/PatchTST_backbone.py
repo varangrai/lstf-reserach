@@ -117,16 +117,17 @@ class ChannelMixing(nn.Module):
         u = torch.reshape(u, (u.shape[0]*u.shape[1],u.shape[2],u.shape[3]))                     # z : [bs * patch_num x nvar x patch_len]
         u = self.W_P.forward(u)                                                                 # z : [bs * patch_num x nvar x d_model]
         u, attn = self.transformer(u)                                                           # z : [bs * patch_num x nvar x d_model]
-        self.log_attn_to_wandb(attn, orig_u)
+        
         # attn is of shape [bs * patch_num x nvar x nvar] pick the ith element and plot to wandb.
 
         u = self.F_P.forward(u)                                                                 # z : [bs * patch_num x nvar x patch_len]
         u = torch.reshape(u, (-1,patch_num,u.shape[-2],u.shape[-1]))                            # z : [bs x patch_num x nvar x patch_len]
+        self.log_attn_to_wandb(attn, orig_u, u)
         u = u.permute(0,2,3,1)                                                                  # z : [bs x nvar x patch_num x patch_len]
         u = torch.reshape(u, (u.shape[0],u.shape[1],u.shape[2]*u.shape[3]))                     # z : [bs x nvar x seq_len]
         return u
 
-    def log_attn_to_wandb(self, attn, orig_tensor):
+    def log_attn_to_wandb(self, attn, orig_tensor, out_tensor):
         # print(attn.shape, orig_tensor.shape)
         # torch.Size([2816, 1, 21, 21]) torch.Size([128, 22, 21, 16])
         random_batch_nums = torch.randint(0, orig_tensor.size()[0], (5,))
@@ -135,19 +136,21 @@ class ChannelMixing(nn.Module):
         for i in range(5):
             chosen_patch = orig_tensor[random_batch_nums[i]][random_patch_nums[i]][:][:]
             attn_matrix = attn[random_batch_nums[i] * random_patch_nums[i]][:][:]
-            self.log_series_and_attn_to_wandb(chosen_patch, attn_matrix)
+            outm = out_tensor[random_batch_nums[i]][random_patch_nums[i]][:][:]
+            self.log_series_and_attn_to_wandb(chosen_patch, attn_matrix, outm)
     
 
-    def log_series_and_attn_to_wandb(self, series, attn_matrix):
+    def log_series_and_attn_to_wandb(self, series, attn_matrix, outm):
         import wandb
         import matplotlib.pyplot as plt
         import numpy as np
         # Convert tensors to numpy arrays
         series_np = series.detach().cpu().numpy()
+        out_np = outm.detach().cpu().numpy()
         attn_matrix_np = attn_matrix.squeeze(0).detach().cpu().numpy()
 
-        # Create a new figure
-        fig, axs = plt.subplots(nrows=2, figsize=(12, 8))
+        # Create a new figure with 3 rows
+        fig, axs = plt.subplots(nrows=3, figsize=(12, 18))
 
         # Plot each feature in the series
         for i in range(series_np.shape[0]):
@@ -155,16 +158,22 @@ class ChannelMixing(nn.Module):
         axs[0].legend()
         axs[0].set_title('Series Features')
 
+        # Plot the output series
+        axs[1].plot(out_np, label='Output Series')
+        axs[1].legend()
+        axs[1].set_title('Output Series')
+
         # Plot the attention matrix as a heatmap
-        im = axs[1].imshow(attn_matrix_np, cmap='hot', interpolation='nearest')
-        axs[1].set_title('Attention Matrix')
-        fig.colorbar(im, ax=axs[1], orientation='horizontal')
+        im = axs[2].imshow(attn_matrix_np, cmap='hot', interpolation='nearest')
+        axs[2].set_title('Attention Matrix')
+        fig.colorbar(im, ax=axs[2], orientation='horizontal')
 
         # Log the figure to wandb
-        wandb.log({"Series and Attention Matrix": wandb.Image(fig)})
+        wandb.log({"Series, Output and Attention Matrix": wandb.Image(fig)})
 
         # Close the figure to free up memory
         plt.close(fig)
+
 
 class Flatten_Head(nn.Module):
     def __init__(self, individual, n_vars, nf, target_window, head_dropout=0):
