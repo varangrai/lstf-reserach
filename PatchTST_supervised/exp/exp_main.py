@@ -123,7 +123,7 @@ class Exp_Main(Exp_Basic):
                                             pct_start = self.args.pct_start,
                                             epochs = self.args.train_epochs,
                                             max_lr = self.args.learning_rate)
-
+        best_vali_loss = 1e9
         for epoch in range(self.args.train_epochs):
             iter_count = 0
             train_loss = []
@@ -209,6 +209,7 @@ class Exp_Main(Exp_Basic):
             vali_loss = self.vali(vali_data, vali_loader, criterion)
             test_loss = self.vali(test_data, test_loader, criterion)
 
+            # log validation and test loss to wandb
             wandb.log({'Validation/Epoch_Validation_Loss': vali_loss,
                    'Test/Epoch_Test_Loss': test_loss}, step=epoch+1)
 
@@ -216,7 +217,7 @@ class Exp_Main(Exp_Basic):
                 epoch + 1, train_steps, train_loss, vali_loss, test_loss))
             early_stopping(vali_loss, self.model, path)
             
-            
+            # log validation and test loss to wandb
             if vali_loss < best_vali_loss and (epoch + 1) >= 50:
                 best_vali_loss = vali_loss
                 # Save the best model if validation loss improves

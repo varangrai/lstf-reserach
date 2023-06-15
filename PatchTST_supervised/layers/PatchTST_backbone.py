@@ -107,23 +107,64 @@ class ChannelMixing(nn.Module):
         self.W_P = nn.Linear(patch_len, d_model)
         self.F_P = nn.Linear(d_model, patch_len)
 
-
     def forward(self , u):                                                                      # z: [bs x nvars x seq_len]
         if self.padding_patch == 'end':                             
             u = self.padding_patch_layer(u)
         u = u.unfold(dimension=-1, size=self.patch_len, step=self.patch_len)                    # z : [bs x nvar x patch_num x patch_len]
         u = u.permute(0,2,1,3)                                                                  # z : [bs x patch_num x nvar x patch_len]
+        orig_u = u.clone()
         patch_num = u.shape[1]                                                                  # z : [bs x patch_num x nvar x patch_len]
         u = torch.reshape(u, (u.shape[0]*u.shape[1],u.shape[2],u.shape[3]))                     # z : [bs * patch_num x nvar x patch_len]
         u = self.W_P.forward(u)                                                                 # z : [bs * patch_num x nvar x d_model]
         u, attn = self.transformer(u)                                                           # z : [bs * patch_num x nvar x d_model]
+        self.log_attn_to_wandb(attn, orig_u)
+        # attn is of shape [bs * patch_num x nvar x nvar] pick the ith element and plot to wandb.
+
         u = self.F_P.forward(u)                                                                 # z : [bs * patch_num x nvar x patch_len]
         u = torch.reshape(u, (-1,patch_num,u.shape[-2],u.shape[-1]))                            # z : [bs x patch_num x nvar x patch_len]
         u = u.permute(0,2,3,1)                                                                  # z : [bs x nvar x patch_num x patch_len]
         u = torch.reshape(u, (u.shape[0],u.shape[1],u.shape[2]*u.shape[3]))                     # z : [bs x nvar x seq_len]
         return u
 
+    def log_attn_to_wandb(self, attn, orig_tensor):
+        # print(attn.shape, orig_tensor.shape)
+        # torch.Size([2816, 1, 21, 21]) torch.Size([128, 22, 21, 16])
+        random_batch_nums = torch.randint(0, orig_tensor.size()[0], (5,))
+        random_patch_nums = torch.randint(0, orig_tensor.size()[1], (5,))
+        
+        for i in range(5):
+            chosen_patch = orig_tensor[random_batch_nums[i]][random_patch_nums[i]][:][:]
+            attn_matrix = attn[random_batch_nums[i] * random_patch_nums[i]][:][:]
+            self.log_series_and_attn_to_wandb(chosen_patch, attn_matrix)
+    
 
+    def log_series_and_attn_to_wandb(self, series, attn_matrix):
+        import wandb
+        import matplotlib.pyplot as plt
+        import numpy as np
+        # Convert tensors to numpy arrays
+        series_np = series.detach().cpu().numpy()
+        attn_matrix_np = attn_matrix.squeeze(0).detach().cpu().numpy()
+
+        # Create a new figure
+        fig, axs = plt.subplots(nrows=2, figsize=(12, 8))
+
+        # Plot each feature in the series
+        for i in range(series_np.shape[0]):
+            axs[0].plot(series_np[i, :], label=f'Feature {i + 1}')
+        axs[0].legend()
+        axs[0].set_title('Series Features')
+
+        # Plot the attention matrix as a heatmap
+        im = axs[1].imshow(attn_matrix_np, cmap='hot', interpolation='nearest')
+        axs[1].set_title('Attention Matrix')
+        fig.colorbar(im, ax=axs[1], orientation='horizontal')
+
+        # Log the figure to wandb
+        wandb.log({"Series and Attention Matrix": wandb.Image(fig)})
+
+        # Close the figure to free up memory
+        plt.close(fig)
 
 class Flatten_Head(nn.Module):
     def __init__(self, individual, n_vars, nf, target_window, head_dropout=0):
