@@ -44,7 +44,7 @@ class PatchTST_backbone(nn.Module):
                                 attn_mask=attn_mask, res_attention=res_attention, pre_norm=pre_norm, store_attn=store_attn,
                                 pe=pe, learn_pe=learn_pe, verbose=verbose, **kwargs)
         #BladeFormer
-        self.BladeFormer = ChannelMixing(patch_len, d_model, 1, padding_patch)
+        # self.BladeFormer = ChannelMixing(patch_len, d_model, 1, padding_patch)
         # Head
         self.head_nf = d_model * patch_num
         self.n_vars = c_in
@@ -67,7 +67,7 @@ class PatchTST_backbone(nn.Module):
             z = z.permute(0,2,1)
 
         #blade
-        z = self.BladeFormer(z, epoch_num, batch_num)
+        # z = self.BladeFormer(z, epoch_num, batch_num)
         
 
         # do patching
