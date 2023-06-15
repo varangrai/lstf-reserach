@@ -163,7 +163,7 @@ class Exp_Main(Exp_Basic):
                         outputs = outputs[:, -self.args.pred_len:, f_dim:]
                         batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
                         loss = criterion(outputs, batch_y)
-                        wandb.log({'Batch Loss': loss.item()}, step=i+1)
+                        # wandb.log({'Batch Loss': loss.item()}, step=i+1)
                         train_loss.append(loss.item())
                 else:
                     if 'Linear' in self.args.model or 'TST' in self.args.model:
@@ -204,21 +204,21 @@ class Exp_Main(Exp_Basic):
 
             print("Epoch: {} cost time: {}".format(epoch + 1, time.time() - epoch_time))
             train_loss = np.average(train_loss)
-            wandb.log({'Train/Train_Loss': train_loss}, step=epoch+1)
+            wandb.log({'Train/Train_Loss': train_loss})
 
             vali_loss = self.vali(vali_data, vali_loader, criterion)
             test_loss = self.vali(test_data, test_loader, criterion)
 
             # log validation and test loss to wandb
             wandb.log({'Validation/Epoch_Validation_Loss': vali_loss,
-                   'Test/Epoch_Test_Loss': test_loss}, step=epoch+1)
+                   'Test/Epoch_Test_Loss': test_loss})
 
             print("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} Vali Loss: {3:.7f} Test Loss: {4:.7f}".format(
                 epoch + 1, train_steps, train_loss, vali_loss, test_loss))
             early_stopping(vali_loss, self.model, path)
             
             # log validation and test loss to wandb
-            if vali_loss < best_vali_loss and (epoch + 1) >= 50:
+            if vali_loss < best_vali_loss and ((epoch + 1) >= 50 or epoch<=1):
                 best_vali_loss = vali_loss
                 # Save the best model if validation loss improves
                 best_model_path = f"{path}/best_model_{epoch}_{best_vali_loss}.pth"
