@@ -34,8 +34,8 @@ class PatchTST_backbone(nn.Module):
         self.padding_patch = padding_patch
         patch_num = int((context_window - patch_len)/stride + 1)
         if padding_patch == 'end': # can be modified to general case
-            # self.padding_patch_layer = nn.ReplicationPad1d((0, stride)) 
-            patch_num += 2
+            self.padding_patch_layer = nn.ReplicationPad1d((0, stride)) 
+            patch_num += 1
         
         # Backbone 
         self.backbone = TSTiEncoder(c_in, patch_num=patch_num, patch_len=patch_len, max_seq_len=max_seq_len,
@@ -59,7 +59,7 @@ class PatchTST_backbone(nn.Module):
             self.head = Flatten_Head(self.individual, self.n_vars, self.head_nf, target_window, head_dropout=head_dropout)
         
     
-    def forward(self, z):                                                                   # z: [bs x nvars x seq_len]
+    def forward(self, z, epoch_num, batch_num):                                                                   # z: [bs x nvars x seq_len]
         # norm
         if self.revin: 
             z = z.permute(0,2,1)
@@ -67,12 +67,12 @@ class PatchTST_backbone(nn.Module):
             z = z.permute(0,2,1)
 
         #blade
-        z = self.BladeFormer(z)
+        z = self.BladeFormer(z, epoch_num, batch_num)
         
 
         # do patching
-        # if self.padding_patch == 'end':
-        #     z = self.padding_patch_layer(z)
+        if self.padding_patch == 'end':
+            z = self.padding_patch_layer(z)
         z = z.unfold(dimension=-1, size=self.patch_len, step=self.stride)                   # z: [bs x nvars x patch_num x patch_len]
         z = z.permute(0,1,3,2)                                                              # z: [bs x nvars x patch_len x patch_num]
         
@@ -107,9 +107,11 @@ class ChannelMixing(nn.Module):
         self.W_P = nn.Linear(patch_len, d_model)
         self.F_P = nn.Linear(d_model, patch_len)
 
-    def forward(self , u):                                                                      # z: [bs x nvars x seq_len]
+    def forward(self , u, epoch_num, batch_num):                                                                      # z: [bs x nvars x seq_len]
+        orig_shape = u.shape
         if self.padding_patch == 'end':                             
             u = self.padding_patch_layer(u)
+        
         u = u.unfold(dimension=-1, size=self.patch_len, step=self.patch_len)                    # z : [bs x nvar x patch_num x patch_len]
         u = u.permute(0,2,1,3)                                                                  # z : [bs x patch_num x nvar x patch_len]
         orig_u = u.clone()
@@ -122,18 +124,26 @@ class ChannelMixing(nn.Module):
 
         u = self.F_P.forward(u)                                                                 # z : [bs * patch_num x nvar x patch_len]
         u = torch.reshape(u, (-1,patch_num,u.shape[-2],u.shape[-1]))                            # z : [bs x patch_num x nvar x patch_len]
-        self.log_attn_to_wandb(attn, orig_u, u)
+        if epoch_num %10 == 0:
+            self.log_attn_to_wandb(attn, orig_u, u)
         u = u.permute(0,2,3,1)                                                                  # z : [bs x nvar x patch_num x patch_len]
         u = torch.reshape(u, (u.shape[0],u.shape[1],u.shape[2]*u.shape[3]))                     # z : [bs x nvar x seq_len]
-        return u
 
+        u = self.restore_shape(orig_shape, u)
+        return u
+    
+    def restore_shape(self, orig_shape, u):
+        u = u[:,:,:orig_shape[-1]]
+        return u
+    
     def log_attn_to_wandb(self, attn, orig_tensor, out_tensor):
         # print(attn.shape, orig_tensor.shape)
         # torch.Size([2816, 1, 21, 21]) torch.Size([128, 22, 21, 16])
-        random_batch_nums = torch.randint(0, orig_tensor.size()[0], (5,))
-        random_patch_nums = torch.randint(0, orig_tensor.size()[1], (5,))
+        num_plots = 1
+        random_batch_nums = torch.randint(0, orig_tensor.size()[0], (num_plots,))
+        random_patch_nums = torch.randint(0, orig_tensor.size()[1], (num_plots,))
         
-        for i in range(5):
+        for i in range(num_plots):
             chosen_patch = orig_tensor[random_batch_nums[i]][random_patch_nums[i]][:][:]
             attn_matrix = attn[random_batch_nums[i] * random_patch_nums[i]][:][:]
             outm = out_tensor[random_batch_nums[i]][random_patch_nums[i]][:][:]
