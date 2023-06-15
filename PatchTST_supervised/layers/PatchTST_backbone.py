@@ -159,7 +159,8 @@ class ChannelMixing(nn.Module):
         axs[0].set_title('Series Features')
 
         # Plot the output series
-        axs[1].plot(out_np, label='Output Series')
+        for i in range(out_np.shape[0]):
+            axs[1].plot(out_np[i, :], label=f'Output {i + 1}')
         axs[1].legend()
         axs[1].set_title('Output Series')
 
