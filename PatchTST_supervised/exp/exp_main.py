@@ -133,7 +133,7 @@ class Exp_Main(Exp_Basic):
 
             # Log the learning rate
             current_lr = model_optim.param_groups[0]['lr']
-            wandb.log({'Learning Rate': current_lr}, step=epoch)
+            wandb.log({'Learning Rate': current_lr})
 
             for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(train_loader):
                 iter_count += 1
@@ -204,14 +204,14 @@ class Exp_Main(Exp_Basic):
 
             print("Epoch: {} cost time: {}".format(epoch + 1, time.time() - epoch_time))
             train_loss = np.average(train_loss)
-            wandb.log({'Train/Train_Loss': train_loss})
 
             vali_loss = self.vali(vali_data, vali_loader, criterion)
             test_loss = self.vali(test_data, test_loader, criterion)
 
             # log validation and test loss to wandb
             wandb.log({'Validation/Epoch_Validation_Loss': vali_loss,
-                   'Test/Epoch_Test_Loss': test_loss})
+                   'Test/Epoch_Test_Loss': test_loss, 
+                   'Train/Train_Loss': train_loss}, step = epoch)
 
             print("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} Vali Loss: {3:.7f} Test Loss: {4:.7f}".format(
                 epoch + 1, train_steps, train_loss, vali_loss, test_loss))
@@ -236,7 +236,7 @@ class Exp_Main(Exp_Basic):
 
         best_model_path = path + '/' + 'checkpoint.pth'
         self.model.load_state_dict(torch.load(best_model_path))
-
+        wandb.finish()
         return self.model
 
     def test(self, setting, test=0):
