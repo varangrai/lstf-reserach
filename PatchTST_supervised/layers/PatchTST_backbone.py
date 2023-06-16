@@ -34,8 +34,8 @@ class PatchTST_backbone(nn.Module):
         self.padding_patch = padding_patch
         patch_num = int((context_window - patch_len)/stride + 1)
         if padding_patch == 'end': # can be modified to general case
-            self.padding_patch_layer = nn.ReplicationPad1d((0, stride)) 
-            patch_num += 1
+            # self.padding_patch_layer = nn.ReplicationPad1d((0, stride)) 
+            patch_num += 2
 
         # Backbone 
         self.backbone = TSTiEncoder(c_in, patch_num=patch_num, patch_len=patch_len, max_seq_len=max_seq_len,
@@ -44,7 +44,7 @@ class PatchTST_backbone(nn.Module):
                                 attn_mask=attn_mask, res_attention=res_attention, pre_norm=pre_norm, store_attn=store_attn,
                                 pe=pe, learn_pe=learn_pe, verbose=verbose, **kwargs)
         #BladeFormer
-        # self.BladeFormer = ChannelMixing(patch_len, d_model, 1, padding_patch)
+        self.BladeFormer = ChannelMixing(patch_len, d_model, 1, padding_patch)
         # Head
         self.head_nf = d_model * patch_num
         self.n_vars = c_in
@@ -67,7 +67,7 @@ class PatchTST_backbone(nn.Module):
             z = z.permute(0,2,1)
 
         #blade
-        # z = self.BladeFormer(z, epoch_num, batch_num)
+        z = self.BladeFormer(z, epoch_num, batch_num)
         
 
         # do patching
@@ -129,7 +129,7 @@ class ChannelMixing(nn.Module):
         u = u.permute(0,2,3,1)                                                                  # z : [bs x nvar x patch_num x patch_len]
         u = torch.reshape(u, (u.shape[0],u.shape[1],u.shape[2]*u.shape[3]))                     # z : [bs x nvar x seq_len]
 
-        u = self.restore_shape(orig_shape, u)
+        # u = self.restore_shape(orig_shape, u)
         return u
     
     def restore_shape(self, orig_shape, u):
