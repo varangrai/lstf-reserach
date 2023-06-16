@@ -179,7 +179,7 @@ class Exp_Main(Exp_Basic):
                     outputs = outputs[:, -self.args.pred_len:, f_dim:]
                     batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
                     loss = criterion(outputs, batch_y)
-                    wandb.log({'Train Batch Loss': loss.item()}, step=i+1)
+                    # wandb.log({'Train Batch Loss': loss.item()}, step=i+1)
                     train_loss.append(loss.item())
 
                 if (i + 1) % 100 == 0:
