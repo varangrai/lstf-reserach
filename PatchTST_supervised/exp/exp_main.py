@@ -211,7 +211,7 @@ class Exp_Main(Exp_Basic):
 
             # log validation and test loss to wandb
             wandb.log({'Validation/Epoch_Validation_Loss': vali_loss,
-                   'Test/Epoch_Test_Loss': test_loss}, steps = epoch)
+                   'Test/Epoch_Test_Loss': test_loss}, step = epoch)
 
             print("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} Vali Loss: {3:.7f} Test Loss: {4:.7f}".format(
                 epoch + 1, train_steps, train_loss, vali_loss, test_loss))
