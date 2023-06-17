@@ -36,15 +36,14 @@ class PatchTST_backbone(nn.Module):
         if padding_patch == 'end': # can be modified to general case
             self.padding_patch_layer = nn.ReplicationPad1d((0, stride)) 
             patch_num += 1
-
+        
         # Backbone 
         self.backbone = TSTiEncoder(c_in, patch_num=patch_num, patch_len=patch_len, max_seq_len=max_seq_len,
                                 n_layers=n_layers, d_model=d_model, n_heads=n_heads, d_k=d_k, d_v=d_v, d_ff=d_ff,
                                 attn_dropout=attn_dropout, dropout=dropout, act=act, key_padding_mask=key_padding_mask, padding_var=padding_var,
                                 attn_mask=attn_mask, res_attention=res_attention, pre_norm=pre_norm, store_attn=store_attn,
                                 pe=pe, learn_pe=learn_pe, verbose=verbose, **kwargs)
-        #BladeFormer
-        # self.BladeFormer = ChannelMixing(patch_len, d_model, 1, padding_patch)
+
         # Head
         self.head_nf = d_model * patch_num
         self.n_vars = c_in
@@ -52,31 +51,24 @@ class PatchTST_backbone(nn.Module):
         self.head_type = head_type
         self.individual = individual
 
-
         if self.pretrain_head: 
             self.head = self.create_pretrain_head(self.head_nf, c_in, fc_dropout) # custom head passed as a partial func with all its kwargs
         elif head_type == 'flatten': 
             self.head = Flatten_Head(self.individual, self.n_vars, self.head_nf, target_window, head_dropout=head_dropout)
         
     
-    def forward(self, z, epoch_num = 0, batch_num = 0):                                                                   # z: [bs x nvars x seq_len]
+    def forward(self, z):                                                                   # z: [bs x nvars x seq_len]
         # norm
         if self.revin: 
             z = z.permute(0,2,1)
             z = self.revin_layer(z, 'norm')
             z = z.permute(0,2,1)
-
-        #blade
-        # z = self.BladeFormer(z, epoch_num, batch_num)
-        
-
+            
         # do patching
         if self.padding_patch == 'end':
             z = self.padding_patch_layer(z)
         z = z.unfold(dimension=-1, size=self.patch_len, step=self.stride)                   # z: [bs x nvars x patch_num x patch_len]
         z = z.permute(0,1,3,2)                                                              # z: [bs x nvars x patch_len x patch_num]
-        
-        
         
         # model
         z = self.backbone(z)                                                                # z: [bs x nvars x d_model x patch_num]
@@ -93,97 +85,6 @@ class PatchTST_backbone(nn.Module):
         return nn.Sequential(nn.Dropout(dropout),
                     nn.Conv1d(head_nf, vars, 1)
                     )
-
-class ChannelMixing(nn.Module):
-    def __init__(self, patch_len, d_model, n_heads, padding_patch):
-        super().__init__()
-        self.patch_len = patch_len
-        self.d_model = d_model
-        self.n_heads = n_heads
-        self.padding_patch = padding_patch
-        if padding_patch == 'end': # can be modified to general case
-            self.padding_patch_layer = nn.ReplicationPad1d((0, patch_len)) 
-        self.transformer = TSTEncoderLayer(q_len=0,d_model = d_model, n_heads = n_heads, res_attention=True)
-        self.W_P = nn.Linear(patch_len, d_model)
-        self.F_P = nn.Linear(d_model, patch_len)
-
-    def forward(self , u, epoch_num, batch_num):                                                                      # z: [bs x nvars x seq_len]
-        orig_shape = u.shape
-        if self.padding_patch == 'end':                             
-            u = self.padding_patch_layer(u)
-        
-        u = u.unfold(dimension=-1, size=self.patch_len, step=self.patch_len)                    # z : [bs x nvar x patch_num x patch_len]
-        u = u.permute(0,2,1,3)                                                                  # z : [bs x patch_num x nvar x patch_len]
-        orig_u = u.clone()
-        patch_num = u.shape[1]                                                                  # z : [bs x patch_num x nvar x patch_len]
-        u = torch.reshape(u, (u.shape[0]*u.shape[1],u.shape[2],u.shape[3]))                     # z : [bs * patch_num x nvar x patch_len]
-        u = self.W_P.forward(u)                                                                 # z : [bs * patch_num x nvar x d_model]
-        u, attn = self.transformer(u)                                                           # z : [bs * patch_num x nvar x d_model]
-        
-        # attn is of shape [bs * patch_num x nvar x nvar] pick the ith element and plot to wandb.
-
-        u = self.F_P.forward(u)                                                                 # z : [bs * patch_num x nvar x patch_len]
-        u = torch.reshape(u, (-1,patch_num,u.shape[-2],u.shape[-1]))                            # z : [bs x patch_num x nvar x patch_len]
-        if epoch_num %10 == 0:
-            self.log_attn_to_wandb(attn, orig_u, u)
-        u = u.permute(0,2,3,1)                                                                  # z : [bs x nvar x patch_num x patch_len]
-        u = torch.reshape(u, (u.shape[0],u.shape[1],u.shape[2]*u.shape[3]))                     # z : [bs x nvar x seq_len]
-
-        u = self.restore_shape(orig_shape, u)
-        return u
-    
-    def restore_shape(self, orig_shape, u):
-        u = u[:,:,:orig_shape[-1]]
-        return u
-    
-    def log_attn_to_wandb(self, attn, orig_tensor, out_tensor):
-        # print(attn.shape, orig_tensor.shape)
-        # torch.Size([2816, 1, 21, 21]) torch.Size([128, 22, 21, 16])
-        num_plots = 1
-        random_batch_nums = torch.randint(0, orig_tensor.size()[0], (num_plots,))
-        random_patch_nums = torch.randint(0, orig_tensor.size()[1], (num_plots,))
-        
-        for i in range(num_plots):
-            chosen_patch = orig_tensor[random_batch_nums[i]][random_patch_nums[i]][:][:]
-            attn_matrix = attn[random_batch_nums[i] * random_patch_nums[i]][:][:]
-            outm = out_tensor[random_batch_nums[i]][random_patch_nums[i]][:][:]
-            self.log_series_and_attn_to_wandb(chosen_patch, attn_matrix, outm)
-    
-
-    def log_series_and_attn_to_wandb(self, series, attn_matrix, outm):
-        import wandb
-        import matplotlib.pyplot as plt
-        import numpy as np
-        # Convert tensors to numpy arrays
-        series_np = series.detach().cpu().numpy()
-        out_np = outm.detach().cpu().numpy()
-        attn_matrix_np = attn_matrix.squeeze(0).detach().cpu().numpy()
-
-        # Create a new figure with 3 rows
-        fig, axs = plt.subplots(nrows=3, figsize=(12, 18))
-
-        # Plot each feature in the series
-        for i in range(series_np.shape[0]):
-            axs[0].plot(series_np[i, :], label=f'Feature {i + 1}')
-        axs[0].legend()
-        axs[0].set_title('Series Features')
-
-        # Plot the output series
-        for i in range(out_np.shape[0]):
-            axs[1].plot(out_np[i, :], label=f'Output {i + 1}')
-        axs[1].legend()
-        axs[1].set_title('Output Series')
-
-        # Plot the attention matrix as a heatmap
-        im = axs[2].imshow(attn_matrix_np, cmap='hot', interpolation='nearest')
-        axs[2].set_title('Attention Matrix')
-        fig.colorbar(im, ax=axs[2], orientation='horizontal')
-
-        # Log the figure to wandb
-        wandb.log({"Series, Output and Attention Matrix": wandb.Image(fig)})
-
-        # Close the figure to free up memory
-        plt.close(fig)
 
 
 class Flatten_Head(nn.Module):
