@@ -32,6 +32,7 @@ class Model(nn.Module):
         fc_dropout = configs.fc_dropout
         head_dropout = configs.head_dropout
         
+        log_2_wandb = configs.log_2_wandb
         individual = configs.individual
     
         patch_len = configs.patch_len
@@ -74,7 +75,7 @@ class Model(nn.Module):
                                   attn_mask=attn_mask, res_attention=res_attention, pre_norm=pre_norm, store_attn=store_attn,
                                   pe=pe, learn_pe=learn_pe, fc_dropout=fc_dropout, head_dropout=head_dropout, padding_patch = padding_patch,
                                   pretrain_head=pretrain_head, head_type=head_type, individual=individual, revin=revin, affine=affine,
-                                  subtract_last=subtract_last, verbose=verbose, **kwargs)
+                                  subtract_last=subtract_last, verbose=verbose, log_2_wandb = log_2_wandb, **kwargs)
     
     
     def forward(self, x, epoch_num = 0, batch_num = 0):           # x: [Batch, Input length, Channel]

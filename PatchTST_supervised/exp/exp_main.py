@@ -133,7 +133,8 @@ class Exp_Main(Exp_Basic):
 
             # Log the learning rate
             current_lr = model_optim.param_groups[0]['lr']
-            wandb.log({'Learning Rate': current_lr})
+            if self.args.log_2_wandb:
+                wandb.log({'Learning Rate': current_lr})
 
             for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(train_loader):
                 iter_count += 1
@@ -163,7 +164,10 @@ class Exp_Main(Exp_Basic):
                         outputs = outputs[:, -self.args.pred_len:, f_dim:]
                         batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
                         loss = criterion(outputs, batch_y)
-                        # wandb.log({'Batch Loss': loss.item()}, step=i+1)
+
+                        # if self.args.log_2_wandb:
+                        #    wandb.log({'Batch Loss': loss.item()}, step=i+1)
+
                         train_loss.append(loss.item())
                 else:
                     if 'Linear' in self.args.model or 'TST' in self.args.model:
@@ -179,6 +183,7 @@ class Exp_Main(Exp_Basic):
                     outputs = outputs[:, -self.args.pred_len:, f_dim:]
                     batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
                     loss = criterion(outputs, batch_y)
+                    # if self.args.log_2_wandb:
                     # wandb.log({'Train Batch Loss': loss.item()}, step=i+1)
                     train_loss.append(loss.item())
 
@@ -209,9 +214,10 @@ class Exp_Main(Exp_Basic):
             test_loss = self.vali(test_data, test_loader, criterion)
 
             # log validation and test loss to wandb
-            wandb.log({'Validation/Epoch_Validation_Loss': vali_loss,
-                   'Test/Epoch_Test_Loss': test_loss, 
-                   'Train/Train_Loss': train_loss}, step = epoch)
+            if self.args.log_2_wandb:
+                wandb.log({'Validation/Epoch_Validation_Loss': vali_loss,
+                    'Test/Epoch_Test_Loss': test_loss, 
+                    'Train/Train_Loss': train_loss}, step = epoch)
 
             print("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} Vali Loss: {3:.7f} Test Loss: {4:.7f}".format(
                 epoch + 1, train_steps, train_loss, vali_loss, test_loss))
@@ -223,7 +229,8 @@ class Exp_Main(Exp_Basic):
                 # Save the best model if validation loss improves
                 best_model_path = f"{path}/best_model_{epoch}_{best_vali_loss}.pth"
                 torch.save(self.model.state_dict(), best_model_path)
-                wandb.save(best_model_path)
+                if self.args.log_2_wandb:
+                    wandb.save(best_model_path)
 
             if early_stopping.early_stop:
                 print("Early stopping")
@@ -236,7 +243,8 @@ class Exp_Main(Exp_Basic):
 
         best_model_path = path + '/' + 'checkpoint.pth'
         self.model.load_state_dict(torch.load(best_model_path))
-        wandb.finish()
+        if self.args.log_2_wandb:
+            wandb.finish()
         return self.model
 
     def test(self, setting, test=0):

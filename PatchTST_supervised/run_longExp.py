@@ -94,15 +94,19 @@ parser.add_argument('--use_multi_gpu', action='store_true', help='use multiple g
 parser.add_argument('--devices', type=str, default='0,1,2,3', help='device ids of multile gpus')
 parser.add_argument('--test_flop', action='store_true', default=False, help='See utils/tools for usage')
 
+# Logging
+parser.add_argument('--log_2_wandb', type=bool, default=True, help='use wandb or not')
+
 args = parser.parse_args()
 
 args_dict = vars(args)
 
-wandb.init(
-    project="PatchTSTS-ChannelMixing",
-    name=args_dict['experiment_name'],
-    config=args_dict,
-)
+if args_dict['log_2_wandb']:
+    wandb.init(
+        project="PatchTSTS-ChannelMixing",
+        name=args_dict['experiment_name'],
+        config=args_dict,
+    )
 
 # random seed
 fix_seed = args.random_seed
