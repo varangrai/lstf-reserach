@@ -1,2 +1,11 @@
 datasets/
 venv/
+checkpoints/
+PatchTST_supervised/data_provider/__pycache__/
+PatchTST_supervised/dataset/
+PatchTST_supervised/exp/__pycache__/
+PatchTST_supervised/layers/__pycache__/
+PatchTST_supervised/models/__pycache__/
+PatchTST_supervised/utils/__pycache__/
+PatchTST_supervised/logs/
+logs/

@@ -3,6 +3,8 @@ __all__ = ['Transpose', 'get_activation_fn', 'moving_avg', 'series_decomp', 'Pos
 import torch
 from torch import nn
 import math
+import os
+os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
 
 class Transpose(nn.Module):
     def __init__(self, *dims, contiguous=False): 

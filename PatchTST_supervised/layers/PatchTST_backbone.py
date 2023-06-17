@@ -7,7 +7,8 @@ from torch import nn
 from torch import Tensor
 import torch.nn.functional as F
 import numpy as np
-
+import os
+os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
 #from collections import OrderedDict
 from layers.PatchTST_layers import *
 from layers.RevIN import RevIN
@@ -27,7 +28,7 @@ class PatchTST_backbone(nn.Module):
         # RevIn
         self.revin = revin
         if self.revin: self.revin_layer = RevIN(c_in, affine=affine, subtract_last=subtract_last)
-        self.log_2_wandb = kwargs['log_2_wandb'] if 'log_2_wandb' in kwargs else False
+        self.log_to_wandb = kwargs['log_to_wandb'] if 'log_to_wandb' in kwargs else False
         # Patching
         self.patch_len = patch_len
         self.stride = stride
@@ -44,7 +45,7 @@ class PatchTST_backbone(nn.Module):
                                 attn_mask=attn_mask, res_attention=res_attention, pre_norm=pre_norm, store_attn=store_attn,
                                 pe=pe, learn_pe=learn_pe, verbose=verbose, **kwargs)
         #BladeFormer
-        self.BladeFormer = ChannelMixing(patch_len, d_model, 1, padding_patch, log_2_wandb = self.log_2_wandb)
+        self.BladeFormer = ChannelMixing(patch_len, d_model, 1, padding_patch, log_to_wandb = self.log_to_wandb)
         # Head
         self.head_nf = d_model * patch_num
         self.n_vars = c_in
@@ -106,7 +107,7 @@ class ChannelMixing(nn.Module):
         self.transformer = TSTEncoderLayer(q_len=0,d_model = d_model, n_heads = n_heads, res_attention=True)
         self.W_P = nn.Linear(patch_len, d_model)
         self.F_P = nn.Linear(d_model, patch_len)
-        self.log_2_wandb = kwargs['log_2_wandb'] if 'log_2_wandb' in kwargs else False
+        self.log_to_wandb = kwargs['log_to_wandb'] if 'log_to_wandb' in kwargs else False
 
     def forward(self , u, epoch_num, batch_num):                                                                      # z: [bs x nvars x seq_len]
         orig_shape = u.shape
@@ -125,7 +126,7 @@ class ChannelMixing(nn.Module):
 
         u = self.F_P.forward(u)                                                                 # z : [bs * patch_num x nvar x patch_len]
         u = torch.reshape(u, (-1,patch_num,u.shape[-2],u.shape[-1]))                            # z : [bs x patch_num x nvar x patch_len]
-        if self.log_2_wandb and epoch_num %10 == 0:
+        if self.log_to_wandb and epoch_num %10 == 0:
             self.log_attn_to_wandb(attn, orig_u, u)
         u = u.permute(0,2,3,1)                                                                  # z : [bs x nvar x patch_num x patch_len]
         u = torch.reshape(u, (u.shape[0],u.shape[1],u.shape[2]*u.shape[3]))                     # z : [bs x nvar x seq_len]
