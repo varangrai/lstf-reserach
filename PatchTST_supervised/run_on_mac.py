@@ -28,6 +28,7 @@ cmd = """
   --train_epochs 120 \
   --patience 20 \
   --experiment_name 'Dim_mixing_patch_with_vanilla_trasformer'\
+  --log_to_wandb \
   --itr 1 --batch_size 128 --learning_rate 0.0001 > logs/LongForecasting/PatchTST_weather_336_96.log
 """
 

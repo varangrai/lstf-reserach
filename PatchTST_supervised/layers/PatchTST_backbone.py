@@ -45,7 +45,7 @@ class PatchTST_backbone(nn.Module):
                                 attn_mask=attn_mask, res_attention=res_attention, pre_norm=pre_norm, store_attn=store_attn,
                                 pe=pe, learn_pe=learn_pe, verbose=verbose, **kwargs)
         #BladeFormer
-        self.BladeFormer = ChannelMixing(patch_len, d_model, 1, padding_patch, log_to_wandb = self.log_to_wandb)
+        self.BladeFormer = ChannelMixing(patch_len, d_model, 1, padding_patch, log_to_wandb = self.log_to_wandb, num_features=c_in, dropout=dropout)
         # Head
         self.head_nf = d_model * patch_num
         self.n_vars = c_in
@@ -96,17 +96,22 @@ class PatchTST_backbone(nn.Module):
                     )
 
 class ChannelMixing(nn.Module):
-    def __init__(self, patch_len, d_model, n_heads, padding_patch, **kwargs):
+    def __init__(self, patch_len, d_model, n_heads, padding_patch, num_features, dropout, **kwargs):
         super().__init__()
         self.patch_len = patch_len
         self.d_model = d_model
         self.n_heads = n_heads
         self.padding_patch = padding_patch
+        self.num_features = num_features
         if padding_patch == 'end': # can be modified to general case
             self.padding_patch_layer = nn.ReplicationPad1d((0, patch_len)) 
+
         self.transformer = TSTEncoderLayer(q_len=0,d_model = d_model, n_heads = n_heads, res_attention=True)
+
         self.W_P = nn.Linear(patch_len, d_model)
+        self.W_pos = positional_encoding('zeros', True, self.num_features, self.d_model)
         self.F_P = nn.Linear(d_model, patch_len)
+        self.dropout = nn.Dropout(0)
         self.log_to_wandb = kwargs['log_to_wandb'] if 'log_to_wandb' in kwargs else False
 
     def forward(self , u, epoch_num, batch_num):                                                                      # z: [bs x nvars x seq_len]
@@ -120,10 +125,11 @@ class ChannelMixing(nn.Module):
         patch_num = u.shape[1]                                                                  # z : [bs x patch_num x nvar x patch_len]
         u = torch.reshape(u, (u.shape[0]*u.shape[1],u.shape[2],u.shape[3]))                     # z : [bs * patch_num x nvar x patch_len]
         u = self.W_P.forward(u)                                                                 # z : [bs * patch_num x nvar x d_model]
+        u = self.dropout(u + self.W_pos)
         u, attn = self.transformer(u)                                                           # z : [bs * patch_num x nvar x d_model]
         
         # attn is of shape [bs * patch_num x nvar x nvar] pick the ith element and plot to wandb.
-
+        
         u = self.F_P.forward(u)                                                                 # z : [bs * patch_num x nvar x patch_len]
         u = torch.reshape(u, (-1,patch_num,u.shape[-2],u.shape[-1]))                            # z : [bs x patch_num x nvar x patch_len]
         if self.log_to_wandb and epoch_num %10 == 0:
@@ -142,13 +148,13 @@ class ChannelMixing(nn.Module):
         # print(attn.shape, orig_tensor.shape)
         # torch.Size([2816, 1, 21, 21]) torch.Size([128, 22, 21, 16])
         num_plots = 1
-        random_batch_nums = torch.randint(0, orig_tensor.size()[0], (num_plots,))
-        random_patch_nums = torch.randint(0, orig_tensor.size()[1], (num_plots,))
+        random_batch_nums = torch.randint(0, orig_tensor.size()[0]-1, (num_plots,))
+        random_patch_nums = torch.randint(0, orig_tensor.size()[1]-1, (num_plots,))
         
         for i in range(num_plots):
-            chosen_patch = orig_tensor[random_batch_nums[i]][random_patch_nums[i]][:][:]
+            chosen_patch =  torch.cat((orig_tensor[random_batch_nums[i]][random_patch_nums[i]][:][:], orig_tensor[random_batch_nums[i]][random_patch_nums[i]+1][:][:]), dim = 1)
             attn_matrix = attn[random_batch_nums[i] * random_patch_nums[i]][:][:]
-            outm = out_tensor[random_batch_nums[i]][random_patch_nums[i]][:][:]
+            outm = torch.cat((out_tensor[random_batch_nums[i]][random_patch_nums[i]][:][:], out_tensor[random_batch_nums[i]][random_patch_nums[i]+1][:][:]), dim = 1)
             self.log_series_and_attn_to_wandb(chosen_patch, attn_matrix, outm)
     
 
