@@ -4,7 +4,7 @@ from models import Informer, Autoformer, Transformer, DLinear, Linear, NLinear, 
 from utils.tools import EarlyStopping, adjust_learning_rate, visual, test_params_flop
 from utils.metrics import metric
 import wandb
-
+import json
 import numpy as np
 import torch
 import torch.nn as nn
@@ -108,6 +108,8 @@ class Exp_Main(Exp_Basic):
         if not os.path.exists(path):
             os.makedirs(path)
 
+        loss_log = {'train_loss': [], 'val_loss': [], 'test_loss': []}
+
         time_now = time.time()
 
         train_steps = len(train_loader)
@@ -134,9 +136,9 @@ class Exp_Main(Exp_Basic):
 
             # Log the learning rate
             current_lr = model_optim.param_groups[0]['lr']
-            if self.args.log_to_wandb:
-                wandb.log({'Learning Rate': current_lr})
-            print("Started Epoch 1")
+            # if self.args.log_to_wandb:
+                # wandb.log({'Learning Rate': current_lr})
+            # print("Started Epoch 1")
             for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(train_loader):
                 iter_count += 1
                 model_optim.zero_grad()
@@ -187,7 +189,7 @@ class Exp_Main(Exp_Basic):
                     # if self.args.log_to_wandb:
                     # wandb.log({'Train Batch Loss': loss.item()}, step=i+1)
                     train_loss.append(loss.item())
-                print("Batch 1")
+                # print("Batch 1")
                 if (i + 1) % 100 == 0:
                     print("\titers: {0}, epoch: {1} | loss: {2:.7f}".format(i + 1, epoch + 1, loss.item()))
                     speed = (time.time() - time_now) / iter_count
@@ -217,7 +219,11 @@ class Exp_Main(Exp_Basic):
             if self.args.log_to_wandb:
                 wandb.log({'Validation/Epoch_Validation_Loss': vali_loss,
                     'Test/Epoch_Test_Loss': test_loss, 
-                    'Train/Train_Loss': train_loss}, step = epoch)
+                    'Train/Train_Loss': train_loss})
+
+            loss_log['train_loss'].append(train_loss)
+            loss_log['val_loss'].append(vali_loss)
+            loss_log['test_loss'].append(test_loss)
 
             print("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} Vali Loss: {3:.7f} Test Loss: {4:.7f}".format(
                 epoch + 1, train_steps, train_loss, vali_loss, test_loss))
@@ -240,6 +246,9 @@ class Exp_Main(Exp_Basic):
                 adjust_learning_rate(model_optim, scheduler, epoch + 1, self.args)
             else:
                 print('Updating learning rate to {}'.format(scheduler.get_last_lr()[0]))
+
+        with open(os.path.join(path, 'loss_log.json'), 'w') as json_file:
+            json.dump(loss_log, json_file)
 
         best_model_path = path + '/' + 'checkpoint.pth'
         self.model.load_state_dict(torch.load(best_model_path))

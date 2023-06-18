@@ -119,7 +119,7 @@ if __name__ == "__main__":
     np.random.seed(fix_seed)
 
 
-    args.use_gpu = True if torch.backends.mps.is_available() and args.use_gpu else False
+    args.use_gpu = True if (torch.backends.mps.is_available() or torch.cuda.is_available()) and args.use_gpu else False
 
 
     if args.use_gpu and args.use_multi_gpu:

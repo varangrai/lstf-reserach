@@ -132,8 +132,8 @@ class ChannelMixing(nn.Module):
         
         u = self.F_P.forward(u)                                                                 # z : [bs * patch_num x nvar x patch_len]
         u = torch.reshape(u, (-1,patch_num,u.shape[-2],u.shape[-1]))                            # z : [bs x patch_num x nvar x patch_len]
-        if self.log_to_wandb and epoch_num %10 == 0:
-            self.log_attn_to_wandb(attn, orig_u, u)
+        # if self.log_to_wandb and epoch_num %10 == 0:
+            # self.log_attn_to_wandb(attn, orig_u, u)
         u = u.permute(0,2,3,1)                                                                  # z : [bs x nvar x patch_num x patch_len]
         u = torch.reshape(u, (u.shape[0],u.shape[1],u.shape[2]*u.shape[3]))                     # z : [bs x nvar x seq_len]
 
