@@ -2,7 +2,7 @@ import os
 import torch
 import numpy as np
 import os
-os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb=2000'
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:2000'
 
 class Exp_Basic(object):
     def __init__(self, args):
