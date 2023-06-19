@@ -247,8 +247,8 @@ class Exp_Main(Exp_Basic):
             else:
                 print('Updating learning rate to {}'.format(scheduler.get_last_lr()[0]))
 
-        with open(os.path.join(path, 'loss_log.json'), 'w') as json_file:
-            json.dump(loss_log, json_file)
+        # with open(os.path.join(path, 'loss_log.json'), 'w') as json_file:
+        #     json.dump(loss_log, json_file)
 
         best_model_path = path + '/' + 'checkpoint.pth'
         self.model.load_state_dict(torch.load(best_model_path))

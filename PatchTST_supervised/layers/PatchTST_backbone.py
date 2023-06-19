@@ -45,7 +45,8 @@ class PatchTST_backbone(nn.Module):
                                 attn_mask=attn_mask, res_attention=res_attention, pre_norm=pre_norm, store_attn=store_attn,
                                 pe=pe, learn_pe=learn_pe, verbose=verbose, **kwargs)
         #BladeFormer
-        self.BladeFormer = ChannelMixing(patch_len, d_model, 1, padding_patch, log_to_wandb = self.log_to_wandb, num_features=c_in, dropout=dropout)
+        self.BladeFormer = ChannelMixing(patch_len = patch_len, d_model = d_model, n_layers = n_layers, padding_patch = padding_patch, n_heads = n_heads, log_to_wandb = self.log_to_wandb, num_features=c_in)
+
         # Head
         self.head_nf = d_model * patch_num
         self.n_vars = c_in
@@ -68,7 +69,7 @@ class PatchTST_backbone(nn.Module):
             z = z.permute(0,2,1)
 
         #blade
-        # z = self.BladeFormer(z, epoch_num, batch_num)
+        z = self.BladeFormer(z, epoch_num, batch_num)
         print("Not using channel mixing")
         # do patching
         if self.padding_patch == 'end':
@@ -95,7 +96,7 @@ class PatchTST_backbone(nn.Module):
                     )
 
 class ChannelMixing(nn.Module):
-    def __init__(self, patch_len, d_model, n_heads, padding_patch, num_features, dropout, **kwargs):
+    def __init__(self, patch_len, d_model,  padding_patch, num_features, n_layers = 1, n_heads = 1, **kwargs):
         super().__init__()
         self.patch_len = patch_len
         self.d_model = d_model
@@ -105,7 +106,8 @@ class ChannelMixing(nn.Module):
         if padding_patch == 'end': # can be modified to general case
             self.padding_patch_layer = nn.ReplicationPad1d((0, patch_len)) 
 
-        self.transformer = TSTEncoderLayer(q_len=0,d_model = d_model, n_heads = n_heads, res_attention=True)
+        # self.transformer = TSTEncoderLayer(q_len=0,d_model = d_model, n_heads = n_heads, res_attention=True)
+        self.encoder_layers = nn.ModuleList([TSTEncoderLayer(q_len=0,d_model = d_model, n_heads = n_heads, res_attention=True) for i in range(n_layers)])
 
         self.W_P = nn.Linear(patch_len, d_model)
         self.W_pos = positional_encoding('zeros', True, self.num_features, self.d_model)
@@ -123,9 +125,22 @@ class ChannelMixing(nn.Module):
         orig_u = u.clone()
         patch_num = u.shape[1]                                                                  # z : [bs x patch_num x nvar x patch_len]
         u = torch.reshape(u, (u.shape[0]*u.shape[1],u.shape[2],u.shape[3]))                     # z : [bs * patch_num x nvar x patch_len]
+
         u = self.W_P.forward(u)                                                                 # z : [bs * patch_num x nvar x d_model]
         u = self.dropout(u + self.W_pos)
-        u, attn = self.transformer(u)                                                           # z : [bs * patch_num x nvar x d_model]
+        
+        # u, attn = self.transformer(u)                                                           # z : [bs * patch_num x nvar x d_model]
+
+        
+        output = u
+        scores = None
+        if self.res_attention:
+            for mod in self.encoder_layers: 
+                output, scores = mod(output, prev=scores)
+            return output
+        else:
+            for mod in self.layers: output = mod(output)
+            return output
         
         # attn is of shape [bs * patch_num x nvar x nvar] pick the ith element and plot to wandb.
         
@@ -296,7 +311,8 @@ class TSTEncoder(nn.Module):
         output = src
         scores = None
         if self.res_attention:
-            for mod in self.layers: output, scores = mod(output, prev=scores, key_padding_mask=key_padding_mask, attn_mask=attn_mask)
+            for mod in self.layers: 
+                output, scores = mod(output, prev=scores, key_padding_mask=key_padding_mask, attn_mask=attn_mask)
             return output
         else:
             for mod in self.layers: output = mod(output, key_padding_mask=key_padding_mask, attn_mask=attn_mask)
