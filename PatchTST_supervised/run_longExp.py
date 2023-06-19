@@ -100,14 +100,13 @@ if __name__ == "__main__":
 
     # Logging
     parser.add_argument('--log_to_wandb', action='store_true', default=False, help='use wandb or not')
-
+    parser.add_argument('--project_name', type=str, default='testing_Exp', help='exp_name')
     args = parser.parse_args()
 
     args_dict = vars(args)
-
     if args_dict['log_to_wandb']:
         wandb.init(
-            project="PatchTSTS-ChannelMixing",
+            project=args_dict['project_name'],
             name=args_dict['experiment_name'],
             config=args_dict,
         )
@@ -189,3 +188,4 @@ if __name__ == "__main__":
         print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
         exp.test(setting, test=1)
         torch.cuda.empty_cache()
+        wandb.finish()

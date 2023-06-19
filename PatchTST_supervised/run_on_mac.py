@@ -25,7 +25,7 @@ cmd = """
   --patch_len 16 \
   --stride 8 \
   --des 'Exp' \
-  --train_epochs 120 \
+  --train_epochs 1 \
   --patience 20 \
   --experiment_name 'Dim_mixing_patch_with_vanilla_trasformer'\
   --log_to_wandb \
