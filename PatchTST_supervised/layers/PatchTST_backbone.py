@@ -7,7 +7,8 @@ from torch import nn
 from torch import Tensor
 import torch.nn.functional as F
 import numpy as np
-
+import os
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb=2000'
 #from collections import OrderedDict
 from layers.PatchTST_layers import *
 from layers.RevIN import RevIN

@@ -12,6 +12,7 @@ from torch import optim
 from torch.optim import lr_scheduler 
 
 import os
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb=2000'
 import time
 
 import warnings

@@ -5,7 +5,8 @@ from exp.exp_main import Exp_Main
 import random
 import numpy as np
 import wandb
-
+import os
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb=2000'
 parser = argparse.ArgumentParser(description='Autoformer & Transformer family for Time Series Forecasting')
 
 # random seed
