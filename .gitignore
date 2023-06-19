@@ -9,3 +9,5 @@ PatchTST_supervised/models/__pycache__/
 PatchTST_supervised/utils/__pycache__/
 PatchTST_supervised/logs/
 logs/
+PatchTST_supervised/wandb
+.gitignore
