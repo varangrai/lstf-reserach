@@ -47,7 +47,7 @@ do
       --experiment_name 'Dim_mixing_patch_with_vanilla_trasformer'\
       --log_to_wandb \
       --itr 1 --batch_size 32 --learning_rate 0.0001 >logs/LongForecasting/$model_name'_'$model_id_name'_'$seq_len'_'$pred_len.log 
-
+done
 seq_len=512
 
 for pred_len in 96
@@ -81,5 +81,4 @@ do
       --experiment_name 'Dim_mixing_patch_with_vanilla_trasformer'\
       --log_to_wandb \
       --itr 1 --batch_size 32 --learning_rate 0.0001 >logs/LongForecasting/$model_name'_'$model_id_name'_'$seq_len'_'$pred_len.log 
-
 done
