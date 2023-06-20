@@ -46,7 +46,7 @@ class PatchTST_backbone(nn.Module):
                                 pe=pe, learn_pe=learn_pe, verbose=verbose, **kwargs)
         #BladeFormer
         self.BladeFormer = ChannelMixing(patch_len = patch_len, d_model = d_model, n_layers = n_layers, padding_patch = padding_patch, 
-                                         n_heads = n_heads, log_to_wandb = self.log_to_wandb, num_features=c_in, res_attention=res_attention)
+                                         n_heads = n_heads, log_to_wandb = self.log_to_wandb, num_features=c_in, res_attention=res_attention, stride = stride)
 
         # Head
         self.head_nf = d_model * patch_num
@@ -70,11 +70,11 @@ class PatchTST_backbone(nn.Module):
             z = z.permute(0,2,1)
 
         #blade
-        z = self.BladeFormer(z, epoch_num, batch_num)
+        z = self.BladeFormer(z, epoch_num, batch_num)                                       # z: [bs x nvars x patch_num x patch_len]
         # do patching
-        if self.padding_patch == 'end':
-            z = self.padding_patch_layer(z)
-        z = z.unfold(dimension=-1, size=self.patch_len, step=self.stride)                   # z: [bs x nvars x patch_num x patch_len]
+        # if self.padding_patch == 'end':
+        #     z = self.padding_patch_layer(z)
+        # z = z.unfold(dimension=-1, size=self.patch_len, step=self.stride)                   
         z = z.permute(0,1,3,2)                                                              # z: [bs x nvars x patch_len x patch_num]
         
         
@@ -96,7 +96,7 @@ class PatchTST_backbone(nn.Module):
                     )
 
 class ChannelMixing(nn.Module):
-    def __init__(self, patch_len, d_model,  padding_patch, num_features, n_layers = 1, n_heads = 1, res_attention=True, **kwargs):
+    def __init__(self, patch_len, d_model,  padding_patch, num_features, n_layers = 1, n_heads = 1, res_attention=True, stride = 1, **kwargs):
         super().__init__()
         self.patch_len = patch_len
         self.d_model = d_model
@@ -104,6 +104,7 @@ class ChannelMixing(nn.Module):
         self.padding_patch = padding_patch
         self.num_features = num_features
         self.res_attention = res_attention
+        self.stride = stride
         if padding_patch == 'end': # can be modified to general case
             self.padding_patch_layer = nn.ReplicationPad1d((0, patch_len)) 
 
@@ -121,7 +122,7 @@ class ChannelMixing(nn.Module):
         if self.padding_patch == 'end':                             
             u = self.padding_patch_layer(u)
         
-        u = u.unfold(dimension=-1, size=self.patch_len, step=self.patch_len)                    # z : [bs x nvar x patch_num x patch_len]
+        u = u.unfold(dimension=-1, size=self.patch_len, step=self.stride)                    # z : [bs x nvar x patch_num x patch_len]
         u = u.permute(0,2,1,3)                                                                  # z : [bs x patch_num x nvar x patch_len]
         orig_u = u.clone()
         patch_num = u.shape[1]                                                                  # z : [bs x patch_num x nvar x patch_len]
@@ -148,10 +149,8 @@ class ChannelMixing(nn.Module):
         # if self.log_to_wandb and epoch_num %10 == 0:
             # self.log_attn_to_wandb(attn, orig_u, u)
         u = u.permute(0,2,3,1)                                                                  # z : [bs x nvar x patch_num x patch_len]
-        u = torch.reshape(u, (u.shape[0],u.shape[1],u.shape[2]*u.shape[3]))                     # z : [bs x nvar x seq_len]
-
-        u = self.restore_shape(orig_shape, u)
         return u
+
     
     def restore_shape(self, orig_shape, u):
         u = u[:,:,:orig_shape[-1]]
