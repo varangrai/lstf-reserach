@@ -71,7 +71,6 @@ class PatchTST_backbone(nn.Module):
 
         #blade
         z = self.BladeFormer(z, epoch_num, batch_num)
-        print("Not using channel mixing")
         # do patching
         if self.padding_patch == 'end':
             z = self.padding_patch_layer(z)
