@@ -148,7 +148,7 @@ class ChannelMixing(nn.Module):
         u = torch.reshape(u, (-1,patch_num,u.shape[-2],u.shape[-1]))                            # z : [bs x patch_num x nvar x patch_len]
         # if self.log_to_wandb and epoch_num %10 == 0:
             # self.log_attn_to_wandb(attn, orig_u, u)
-        u = u.permute(0,2,3,1)                                                                  # z : [bs x nvar x patch_num x patch_len]
+        u = u.permute(0,2,1,3)                                                                  # z : [bs x nvar x patch_num x patch_len]
         return u
 
     
