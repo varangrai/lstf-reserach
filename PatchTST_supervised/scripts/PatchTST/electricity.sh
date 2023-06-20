@@ -46,6 +46,8 @@ do
       --pct_start 0.2\
       --experiment_name 'Dim_mixing_patch_with_vanilla_trasformer'\
       --log_to_wandb \
+      --project_name 'PatchTSTS-ChannelMixing'\
+      --use_multi_gpu \
       --itr 1 --batch_size 32 --learning_rate 0.0001 >logs/LongForecasting/$model_name'_'$model_id_name'_'$seq_len'_'$pred_len.log 
 done
 seq_len=512
@@ -78,6 +80,8 @@ do
       --patience 10\
       --lradj 'TST'\
       --pct_start 0.2\
+      --project_name 'PatchTSTS-ChannelMixing'\
+      --use_multi_gpu \
       --experiment_name 'Dim_mixing_patch_with_vanilla_trasformer'\
       --log_to_wandb \
       --itr 1 --batch_size 32 --learning_rate 0.0001 >logs/LongForecasting/$model_name'_'$model_id_name'_'$seq_len'_'$pred_len.log 
