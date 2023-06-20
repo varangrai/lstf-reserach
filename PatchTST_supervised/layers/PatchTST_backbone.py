@@ -45,7 +45,8 @@ class PatchTST_backbone(nn.Module):
                                 attn_mask=attn_mask, res_attention=res_attention, pre_norm=pre_norm, store_attn=store_attn,
                                 pe=pe, learn_pe=learn_pe, verbose=verbose, **kwargs)
         #BladeFormer
-        self.BladeFormer = ChannelMixing(patch_len = patch_len, d_model = d_model, n_layers = n_layers, padding_patch = padding_patch, n_heads = n_heads, log_to_wandb = self.log_to_wandb, num_features=c_in)
+        self.BladeFormer = ChannelMixing(patch_len = patch_len, d_model = d_model, n_layers = n_layers, padding_patch = padding_patch, 
+                                         n_heads = n_heads, log_to_wandb = self.log_to_wandb, num_features=c_in, res_attention=res_attention)
 
         # Head
         self.head_nf = d_model * patch_num
@@ -96,13 +97,14 @@ class PatchTST_backbone(nn.Module):
                     )
 
 class ChannelMixing(nn.Module):
-    def __init__(self, patch_len, d_model,  padding_patch, num_features, n_layers = 1, n_heads = 1, **kwargs):
+    def __init__(self, patch_len, d_model,  padding_patch, num_features, n_layers = 1, n_heads = 1, res_attention=True, **kwargs):
         super().__init__()
         self.patch_len = patch_len
         self.d_model = d_model
         self.n_heads = n_heads
         self.padding_patch = padding_patch
         self.num_features = num_features
+        self.res_attention = res_attention
         if padding_patch == 'end': # can be modified to general case
             self.padding_patch_layer = nn.ReplicationPad1d((0, patch_len)) 
 
@@ -137,11 +139,9 @@ class ChannelMixing(nn.Module):
         if self.res_attention:
             for mod in self.encoder_layers: 
                 output, scores = mod(output, prev=scores)
-            return output
         else:
             for mod in self.layers: output = mod(output)
-            return output
-        
+        u = output
         # attn is of shape [bs * patch_num x nvar x nvar] pick the ith element and plot to wandb.
         
         u = self.F_P.forward(u)                                                                 # z : [bs * patch_num x nvar x patch_len]
