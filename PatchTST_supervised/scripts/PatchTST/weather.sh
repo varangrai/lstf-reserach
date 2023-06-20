@@ -8,13 +8,13 @@ fi
 seq_len=336
 model_name=PatchTST
 
-root_path_name=./dataset/
+root_path_name=./dataset/weather/
 data_path_name=weather.csv
 model_id_name=weather
 data_name=custom
 
 random_seed=2021
-for pred_len in 96 192 336 720
+for pred_len in 96 336
 do
     python -u run_longExp.py \
       --random_seed $random_seed \
@@ -40,5 +40,8 @@ do
       --des 'Exp' \
       --train_epochs 100\
       --patience 20\
+      --experiment_name 'Dim_mixing_patch_with_vanilla_trasformer'\
+      #--project_name 'PatchTSTS-ChannelMixing'\
+      --log_to_wandb
       --itr 1 --batch_size 128 --learning_rate 0.0001 >logs/LongForecasting/$model_name'_'$model_id_name'_'$seq_len'_'$pred_len.log 
 done

@@ -104,12 +104,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     args_dict = vars(args)
-    if args_dict['log_to_wandb']:
-        wandb.init(
-            project=args_dict['project_name'],
-            name=args_dict['experiment_name'],
-            config=args_dict,
-        )
+    
 
     # random seed
     fix_seed = args.random_seed
@@ -134,6 +129,12 @@ if __name__ == "__main__":
 
     if args.is_training:
         for ii in range(args.itr):
+            if args_dict['log_to_wandb']:
+                wandb.init(
+                    project=args_dict['project_name'],
+                    name=args_dict['experiment_name'],
+                    config=args_dict,
+                )
             # setting record of experiments
             setting = '{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_{}_{}'.format(
                 args.model_id,
@@ -163,7 +164,8 @@ if __name__ == "__main__":
             if args.do_predict:
                 print('>>>>>>>predicting : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
                 exp.predict(setting, True)
-
+            if args_dict['log_to_wandb']:
+                wandb.finish()
             torch.cuda.empty_cache()
     else:
         ii = 0

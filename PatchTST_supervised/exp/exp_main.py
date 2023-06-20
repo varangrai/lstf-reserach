@@ -252,8 +252,6 @@ class Exp_Main(Exp_Basic):
 
         best_model_path = path + '/' + 'checkpoint.pth'
         self.model.load_state_dict(torch.load(best_model_path))
-        if self.args.log_to_wandb:
-            wandb.finish()
         return self.model
 
     def test(self, setting, test=0):

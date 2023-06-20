@@ -109,7 +109,7 @@ class ChannelMixing(nn.Module):
             self.padding_patch_layer = nn.ReplicationPad1d((0, patch_len)) 
 
         # self.transformer = TSTEncoderLayer(q_len=0,d_model = d_model, n_heads = n_heads, res_attention=True)
-        self.encoder_layers = nn.ModuleList([TSTEncoderLayer(q_len=0,d_model = d_model, n_heads = n_heads, res_attention=True) for i in range(n_layers)])
+        self.encoder_layers = nn.ModuleList([TSTEncoderLayer(q_len=0,d_model = d_model, n_heads = n_heads, res_attention = res_attention) for i in range(n_layers)])
 
         self.W_P = nn.Linear(patch_len, d_model)
         self.W_pos = positional_encoding('zeros', True, self.num_features, self.d_model)
@@ -140,7 +140,7 @@ class ChannelMixing(nn.Module):
             for mod in self.encoder_layers: 
                 output, scores = mod(output, prev=scores)
         else:
-            for mod in self.layers: output = mod(output)
+            for mod in self.encoder_layers: output = mod(output)
         u = output
         # attn is of shape [bs * patch_num x nvar x nvar] pick the ith element and plot to wandb.
         
