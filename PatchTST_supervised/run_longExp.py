@@ -100,7 +100,7 @@ args = parser.parse_args()
 args_dict = vars(args)
 
 wandb.init(
-    project="PatchTSTS-ChannelMixing",
+    project="PatchTST-Orignal",
     name=args_dict['experiment_name'],
     config=args_dict,
 )
