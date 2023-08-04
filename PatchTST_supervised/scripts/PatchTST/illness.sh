@@ -27,7 +27,7 @@ do
       --features M \
       --seq_len $seq_len \
       --pred_len $pred_len \
-      --experiment_name $experiment_name
+      --experiment_name $experiment_name \
       --enc_in 7 \
       --e_layers 3 \
       --n_heads 4 \
