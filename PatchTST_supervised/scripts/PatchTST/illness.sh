@@ -13,7 +13,7 @@ data_path_name=national_illness.csv
 model_id_name=national_illness
 data_name=custom
 random_seed=2021
-experiment_name=model_id_name
+experiment_name=national_illness
 for pred_len in 24 36 48 60
 do
     python -u run_longExp.py \

@@ -180,7 +180,7 @@ class Exp_Main(Exp_Basic):
                     outputs = outputs[:, -self.args.pred_len:, f_dim:]
                     batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
                     loss = criterion(outputs, batch_y)
-                    wandb.log({'Train Batch Loss': loss.item()})
+                    # wandb.log({'Train Batch Loss': loss.item()})
                     train_loss.append(loss.item())
 
                 if (i + 1) % 100 == 0:
@@ -210,9 +210,9 @@ class Exp_Main(Exp_Basic):
             test_loss = self.vali(test_data, test_loader, criterion)
 
             # log validation and test loss to wandb
-            wandb.log({'Train/Train_Loss': train_loss, 
-                       'Validation/Epoch_Validation_Loss': vali_loss,
-                   'Test/Epoch_Test_Loss': test_loss, 'Epoch' : epoch + 1})
+            wandb.log({'Validation/Epoch_Validation_Loss': vali_loss,
+                    'Test/Epoch_Test_Loss': test_loss, 
+                    'Train/Train_Loss': train_loss})
 
             print("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} Vali Loss: {3:.7f} Test Loss: {4:.7f}".format(
                 epoch + 1, train_steps, train_loss, vali_loss, test_loss))
