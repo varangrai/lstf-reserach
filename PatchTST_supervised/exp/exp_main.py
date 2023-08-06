@@ -218,7 +218,7 @@ class Exp_Main(Exp_Basic):
             if self.args.log_to_wandb:
                 wandb.log({'Validation/Epoch_Validation_Loss': vali_loss,
                     'Test/Epoch_Test_Loss': test_loss, 
-                    'Train/Train_Loss': train_loss}, step = epoch)
+                    'Train/Train_Loss': train_loss})
 
             print("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} Vali Loss: {3:.7f} Test Loss: {4:.7f}".format(
                 epoch + 1, train_steps, train_loss, vali_loss, test_loss))
