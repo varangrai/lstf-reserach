@@ -188,7 +188,6 @@ class Exp_Main(Exp_Basic):
                     # if self.args.log_to_wandb:
                     # wandb.log({'Train Batch Loss': loss.item()}, step=i+1)
                     train_loss.append(loss.item())
-                print("Batch 1")
                 if (i + 1) % 100 == 0:
                     print("\titers: {0}, epoch: {1} | loss: {2:.7f}".format(i + 1, epoch + 1, loss.item()))
                     speed = (time.time() - time_now) / iter_count
