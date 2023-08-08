@@ -70,17 +70,19 @@ class PatchTST_backbone(nn.Module):
             z = z.permute(0,2,1)
 
         #blade
-        z = self.BladeFormer(z, epoch_num, batch_num)                                       # z: [bs x nvars x patch_num x patch_len]
+        # z = self.BladeFormer(z, epoch_num, batch_num)                                       # z: [bs x nvars x patch_num x patch_len]
         # do patching
-        # if self.padding_patch == 'end':
-        #     z = self.padding_patch_layer(z)
-        # z = z.unfold(dimension=-1, size=self.patch_len, step=self.stride)                   
+        if self.padding_patch == 'end':
+            z = self.padding_patch_layer(z)
+        z = z.unfold(dimension=-1, size=self.patch_len, step=self.stride)                   
         z = z.permute(0,1,3,2)                                                              # z: [bs x nvars x patch_len x patch_num]
         
         
         
         # model
         z = self.backbone(z)                                                                # z: [bs x nvars x d_model x patch_num]
+        
+        z = self.BladeFormer(z, epoch_num, batch_num)  
         
         z = self.head(z)                                                                    # z: [bs x nvars x target_window] 
         
@@ -119,11 +121,13 @@ class ChannelMixing(nn.Module):
         self.log_to_wandb = kwargs['log_to_wandb'] if 'log_to_wandb' in kwargs else False
 
     def forward(self , u, epoch_num, batch_num):                                                                      # z: [bs x nvars x seq_len]
-        orig_shape = u.shape
-        if self.padding_patch == 'end':                             
-            u = self.padding_patch_layer(u)
+        # u is of shape:  [bs x nvars x d_model x patch_num]
+        orig_shape = u.shape    
+        u = u.permute(0,1,3,2)  # [bs x nvars x patch_num x d_model]
+        # if self.padding_patch == 'end':                             
+        #     u = self.padding_patch_layer(u)
         
-        u = u.unfold(dimension=-1, size=self.patch_len, step=self.stride)                    # z : [bs x nvar x patch_num x patch_len]
+        # u = u.unfold(dimension=-1, size=self.patch_len, step=self.stride)                    # z : [bs x nvar x patch_num x patch_len]
         u = u.permute(0,2,1,3)                                                                  # z : [bs x patch_num x nvar x patch_len]
         orig_u = u.clone()
         patch_num = u.shape[1]                                                                  # z : [bs x patch_num x nvar x patch_len]
