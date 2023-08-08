@@ -81,6 +81,7 @@ class PatchTST_backbone(nn.Module):
         
         # model
         z = self.backbone(z)                                                                # z: [bs x nvars x d_model x patch_num]
+        
         z = self.head(z)                                                                    # z: [bs x nvars x target_window] 
         
         # denorm
