@@ -126,6 +126,9 @@ class Exp_Main(Exp_Basic):
                                             pct_start = self.args.pct_start,
                                             epochs = self.args.train_epochs,
                                             max_lr = self.args.learning_rate)
+        # from torch.optim.lr_scheduler import ReduceLROnPlateau
+        # scheduler = ReduceLROnPlateau(optimizer=model_optim, mode='min', factor=0.1, patience=10, verbose=True)
+
         best_vali_loss = 1e9
         for epoch in range(self.args.train_epochs):
             iter_count = 0
