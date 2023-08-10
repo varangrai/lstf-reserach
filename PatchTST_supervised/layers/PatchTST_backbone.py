@@ -37,7 +37,7 @@ class PatchTST_backbone(nn.Module):
         if padding_patch == 'end': # can be modified to general case
             self.padding_patch_layer = nn.ReplicationPad1d((0, stride)) 
             patch_num += 1
-        patch_num+=1
+
         # Backbone 
         self.backbone = TSTiEncoder(c_in, patch_num=patch_num, patch_len=patch_len, max_seq_len=max_seq_len,
                                 n_layers=n_layers, d_model=d_model, n_heads=n_heads, d_k=d_k, d_v=d_v, d_ff=d_ff,
@@ -45,8 +45,8 @@ class PatchTST_backbone(nn.Module):
                                 attn_mask=attn_mask, res_attention=res_attention, pre_norm=pre_norm, store_attn=store_attn,
                                 pe=pe, learn_pe=learn_pe, verbose=verbose, **kwargs)
         #BladeFormer
-        self.BladeFormer = ChannelMixing(patch_len = patch_len, d_model = d_model, n_layers = 1, padding_patch = padding_patch, 
-                                         n_heads = 1, log_to_wandb = self.log_to_wandb, num_features=c_in, res_attention=res_attention, stride = stride)
+        self.BladeFormer = ChannelMixing(patch_len = patch_len, d_model = d_model, n_layers = n_layers, padding_patch = padding_patch, 
+                                         n_heads = n_heads, log_to_wandb = self.log_to_wandb, num_features=c_in, res_attention=res_attention)
 
         # Head
         self.head_nf = d_model * patch_num
@@ -70,28 +70,26 @@ class PatchTST_backbone(nn.Module):
             z = z.permute(0,2,1)
 
         #blade
-        # z = self.BladeFormer(z, epoch_num, batch_num)                                       # z: [bs x nvars x patch_num x patch_len]
+        z_ci = z.clone()
+        z_cd = self.BladeFormer(z, epoch_num, batch_num)
         # do patching
         if self.padding_patch == 'end':
-            z = self.padding_patch_layer(z)
-        z = z.unfold(dimension=-1, size=self.patch_len, step=self.stride)                   
-        z = z.permute(0,1,3,2)                                                              # z: [bs x nvars x patch_len x patch_num]
+            z_ci = self.padding_patch_layer(z_ci)
+        z_ci = z_ci.unfold(dimension=-1, size=self.patch_len, step=self.stride)                   # z: [bs x nvars x patch_num x patch_len]
+        z_ci = z_ci.permute(0,1,3,2)                                                              # z: [bs x nvars x patch_len x patch_num]
         
         
         
         # model
-        z = self.backbone(z)                                                                # z: [bs x nvars x d_model x patch_num]
-        
-        z = self.BladeFormer(z, epoch_num, batch_num)  
-        
-        z = self.head(z)                                                                    # z: [bs x nvars x target_window] 
+        z_ci_cd = self.backbone(z_ci, z_cd)                                                     # z: [bs x nvars x d_model x patch_num]
+        z_ci_cd = self.head(z_ci_cd)                                                                    # z: [bs x nvars x target_window] 
         
         # denorm
         if self.revin: 
-            z = z.permute(0,2,1)
-            z = self.revin_layer(z, 'denorm')
-            z = z.permute(0,2,1)
-        return z
+            z_ci_cd = z_ci_cd.permute(0,2,1)
+            z_ci_cd = self.revin_layer(z_ci_cd, 'denorm')
+            z_ci_cd = z_ci_cd.permute(0,2,1)
+        return z_ci_cd
     
     def create_pretrain_head(self, head_nf, vars, dropout):
         return nn.Sequential(nn.Dropout(dropout),
@@ -99,7 +97,7 @@ class PatchTST_backbone(nn.Module):
                     )
 
 class ChannelMixing(nn.Module):
-    def __init__(self, patch_len, d_model,  padding_patch, num_features, n_layers = 1, n_heads = 1, res_attention=True, stride = 1, **kwargs):
+    def __init__(self, patch_len, d_model,  padding_patch, num_features, n_layers = 1, n_heads = 1, res_attention=True, **kwargs):
         super().__init__()
         self.patch_len = patch_len
         self.d_model = d_model
@@ -107,7 +105,6 @@ class ChannelMixing(nn.Module):
         self.padding_patch = padding_patch
         self.num_features = num_features
         self.res_attention = res_attention
-        self.stride = stride
         if padding_patch == 'end': # can be modified to general case
             self.padding_patch_layer = nn.ReplicationPad1d((0, patch_len)) 
 
@@ -116,18 +113,16 @@ class ChannelMixing(nn.Module):
 
         self.W_P = nn.Linear(patch_len, d_model)
         self.W_pos = positional_encoding('zeros', True, self.num_features, self.d_model)
-        self.F_P = nn.Linear(d_model, patch_len)
+        self.F_P = nn.Linear(d_model, d_model//2)
         self.dropout = nn.Dropout(0)
         self.log_to_wandb = kwargs['log_to_wandb'] if 'log_to_wandb' in kwargs else False
 
     def forward(self , u, epoch_num, batch_num):                                                                      # z: [bs x nvars x seq_len]
-        # u is of shape:  [bs x nvars x d_model x patch_num]
-        orig_shape = u.shape    
-        u = u.permute(0,1,3,2)  # [bs x nvars x patch_num x d_model]
-        # if self.padding_patch == 'end':                             
-        #     u = self.padding_patch_layer(u)
+        orig_shape = u.shape
+        if self.padding_patch == 'end':                             
+            u = self.padding_patch_layer(u)
         
-        # u = u.unfold(dimension=-1, size=self.patch_len, step=self.stride)                    # z : [bs x nvar x patch_num x patch_len]
+        u = u.unfold(dimension=-1, size=self.patch_len, step=self.patch_len)                    # z : [bs x nvar x patch_num x patch_len]
         u = u.permute(0,2,1,3)                                                                  # z : [bs x patch_num x nvar x patch_len]
         orig_u = u.clone()
         patch_num = u.shape[1]                                                                  # z : [bs x patch_num x nvar x patch_len]
@@ -149,18 +144,20 @@ class ChannelMixing(nn.Module):
         u = output
         # attn is of shape [bs * patch_num x nvar x nvar] pick the ith element and plot to wandb.
         
-        u = self.F_P.forward(u)                                                                 # z : [bs * patch_num x nvar x patch_len]
-        u = torch.reshape(u, (-1,patch_num,u.shape[-2],u.shape[-1]))                            # z : [bs x patch_num x nvar x patch_len]
+        u = self.F_P.forward(u)                                                                 # z : [bs * patch_num x nvar x d_model/2]
+        u = torch.reshape(u, (-1,patch_num,u.shape[-2],u.shape[-1]))                            # z : [bs x patch_num x nvar x d_model/2]
         # if self.log_to_wandb and epoch_num %10 == 0:
             # self.log_attn_to_wandb(attn, orig_u, u)
-        u = u.permute(0,2,1,3)                                                                  # z : [bs x nvar x patch_num x patch_len]
-        return u
+        u = u.permute(0,2,3,1)                                                                  # z : [bs x nvar x patch_num x d_model/2]
+        # u = torch.reshape(u, (u.shape[0],u.shape[1],u.shape[2]*u.shape[3]))                     # z : [bs x nvar x seq_len]
 
+        # u = self.restore_shape(orig_shape, u)
+        return u
     
     def restore_shape(self, orig_shape, u):
         u = u[:,:,:orig_shape[-1]]
         return u
-    
+
     def log_attn_to_wandb(self, attn, orig_tensor, out_tensor):
         # print(attn.shape, orig_tensor.shape)
         # torch.Size([2816, 1, 21, 21]) torch.Size([128, 22, 21, 16])
@@ -264,7 +261,7 @@ class TSTiEncoder(nn.Module):  #i means channel-independent
         
         # Input encoding
         q_len = patch_num
-        self.W_P = nn.Linear(patch_len, d_model)        # Eq 1: projection of feature vectors onto a d-dim vector space
+        self.W_P = nn.Linear(patch_len, d_model//2)        # Eq 1: projection of feature vectors onto a d-dim vector space
         self.seq_len = q_len
 
         # Positional encoding
@@ -278,14 +275,17 @@ class TSTiEncoder(nn.Module):  #i means channel-independent
                                    pre_norm=pre_norm, activation=act, res_attention=res_attention, n_layers=n_layers, store_attn=store_attn)
 
         
-    def forward(self, x) -> Tensor:                                              # x: [bs x nvars x patch_len x patch_num]
+    def forward(self, z_ci, z_cd) -> Tensor:                                              # x: [bs x nvars x patch_len x patch_num]
         
-        n_vars = x.shape[1]
+        n_vars = z_ci.shape[1]
         # Input encoding
-        x = x.permute(0,1,3,2)                                                   # x: [bs x nvars x patch_num x patch_len]
-        x = self.W_P(x)                                                          # x: [bs x nvars x patch_num x d_model]
-
-        u = torch.reshape(x, (x.shape[0]*x.shape[1],x.shape[2],x.shape[3]))      # u: [bs * nvars x patch_num x d_model]
+        z_ci = z_ci.permute(0,1,3,2)                                                   # x: [bs x nvars x patch_num x patch_len]
+        z_ci = self.W_P(z_ci)                                                          # x: [bs x nvars x patch_num x d_model/2]
+        
+        #x_mix: [bs x nvar x patch_num x d_model/2]
+        z_ci_cd = torch.cat((z_ci, z_cd), dim = -1)                                    # x: [bs x nvars x patch_num x d_model]
+        
+        u = torch.reshape(z_ci_cd, (z_ci_cd.shape[0]*z_ci_cd.shape[1],z_ci_cd.shape[2],z_ci_cd.shape[3]))      # u: [bs * nvars x patch_num x d_model]
         u = self.dropout(u + self.W_pos)                                         # u: [bs * nvars x patch_num x d_model]
 
         # Encoder
@@ -295,7 +295,8 @@ class TSTiEncoder(nn.Module):  #i means channel-independent
         
         return z    
             
-            
+        
+        
     
 # Cell
 class TSTEncoder(nn.Module):
