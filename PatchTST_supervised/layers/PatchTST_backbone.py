@@ -37,7 +37,7 @@ class PatchTST_backbone(nn.Module):
         if padding_patch == 'end': # can be modified to general case
             self.padding_patch_layer = nn.ReplicationPad1d((0, stride)) 
             patch_num += 1
-
+        # patch_num += 1
         # Backbone 
         self.backbone = TSTiEncoder(c_in, patch_num=patch_num, patch_len=patch_len, max_seq_len=max_seq_len,
                                 n_layers=n_layers, d_model=d_model, n_heads=n_heads, d_k=d_k, d_v=d_v, d_ff=d_ff,
@@ -46,7 +46,8 @@ class PatchTST_backbone(nn.Module):
                                 pe=pe, learn_pe=learn_pe, verbose=verbose, **kwargs)
         #BladeFormer
         self.BladeFormer = ChannelMixing(patch_len = patch_len, d_model = d_model, n_layers = n_layers, padding_patch = padding_patch, 
-                                         n_heads = n_heads, log_to_wandb = self.log_to_wandb, num_features=c_in, res_attention=res_attention)
+                                         n_heads = n_heads, log_to_wandb = self.log_to_wandb, num_features=c_in, res_attention=res_attention,
+                                         stride = stride)
 
         # Head
         self.head_nf = d_model * patch_num
@@ -97,7 +98,7 @@ class PatchTST_backbone(nn.Module):
                     )
 
 class ChannelMixing(nn.Module):
-    def __init__(self, patch_len, d_model,  padding_patch, num_features, n_layers = 1, n_heads = 1, res_attention=True, **kwargs):
+    def __init__(self, patch_len, d_model,  padding_patch, num_features, n_layers = 1, n_heads = 1, res_attention=True, stride = -1, **kwargs):
         super().__init__()
         self.patch_len = patch_len
         self.d_model = d_model
@@ -105,8 +106,9 @@ class ChannelMixing(nn.Module):
         self.padding_patch = padding_patch
         self.num_features = num_features
         self.res_attention = res_attention
+        self.stride = stride
         if padding_patch == 'end': # can be modified to general case
-            self.padding_patch_layer = nn.ReplicationPad1d((0, patch_len)) 
+            self.padding_patch_layer = nn.ReplicationPad1d((0, stride))
 
         # self.transformer = TSTEncoderLayer(q_len=0,d_model = d_model, n_heads = n_heads, res_attention=True)
         self.encoder_layers = nn.ModuleList([TSTEncoderLayer(q_len=0,d_model = d_model, n_heads = n_heads, res_attention = res_attention) for i in range(n_layers)])
@@ -121,8 +123,7 @@ class ChannelMixing(nn.Module):
         orig_shape = u.shape
         if self.padding_patch == 'end':                             
             u = self.padding_patch_layer(u)
-        
-        u = u.unfold(dimension=-1, size=self.patch_len, step=self.patch_len)                    # z : [bs x nvar x patch_num x patch_len]
+        u = u.unfold(dimension=-1, size=self.patch_len, step=self.stride)                    # z : [bs x nvar x patch_num x patch_len]
         u = u.permute(0,2,1,3)                                                                  # z : [bs x patch_num x nvar x patch_len]
         orig_u = u.clone()
         patch_num = u.shape[1]                                                                  # z : [bs x patch_num x nvar x patch_len]
@@ -148,8 +149,8 @@ class ChannelMixing(nn.Module):
         u = torch.reshape(u, (-1,patch_num,u.shape[-2],u.shape[-1]))                            # z : [bs x patch_num x nvar x d_model/2]
         # if self.log_to_wandb and epoch_num %10 == 0:
             # self.log_attn_to_wandb(attn, orig_u, u)
-        u = u.permute(0,2,3,1)                                                                  # z : [bs x nvar x patch_num x d_model/2]
-        # u = torch.reshape(u, (u.shape[0],u.shape[1],u.shape[2]*u.shape[3]))                     # z : [bs x nvar x seq_len]
+        u = u.permute(0,2,1,3)                                                                  # z : [bs x nvar x patch_num x d_model/2]
+        # u = torch.reshape(u, (u.shape[0],u.shape[1],u.shape[2]*u.shape[3]))                   # z : [bs x nvar x seq_len]
 
         # u = self.restore_shape(orig_shape, u)
         return u
@@ -258,7 +259,6 @@ class TSTiEncoder(nn.Module):  #i means channel-independent
         
         self.patch_num = patch_num
         self.patch_len = patch_len
-        
         # Input encoding
         q_len = patch_num
         self.W_P = nn.Linear(patch_len, d_model//2)        # Eq 1: projection of feature vectors onto a d-dim vector space
