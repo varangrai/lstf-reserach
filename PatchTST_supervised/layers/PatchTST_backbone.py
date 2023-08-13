@@ -8,6 +8,7 @@ from torch import Tensor
 import torch.nn.functional as F
 import numpy as np
 import os
+from PyEMD import EMD, EEMD
 os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
 #from collections import OrderedDict
 from layers.PatchTST_layers import *
@@ -48,6 +49,8 @@ class PatchTST_backbone(nn.Module):
         self.BladeFormer = ChannelMixing(patch_len = patch_len, d_model = d_model, n_layers = n_layers, padding_patch = padding_patch, 
                                          n_heads = n_heads, log_to_wandb = self.log_to_wandb, num_features=c_in, res_attention=res_attention)
 
+        # Decomposer
+        self.Decomposer = Decomposer()
         # Head
         self.head_nf = d_model * patch_num
         self.n_vars = c_in
@@ -70,18 +73,24 @@ class PatchTST_backbone(nn.Module):
             z = z.permute(0,2,1)
 
         #blade
-        z = self.BladeFormer(z, epoch_num, batch_num)
+        z_cd = self.BladeFormer(z, epoch_num, batch_num)                            # z : [bs x nvars x seq_len]
+        z_dec = self.Decomposer(z_cd)                                               # z : [bs x nvars x k x seq_len]
+        z_dec = torch.reshape(z_dec, (z_dec.shape[0],z_dec.shape[1]*z_dec.shape[2], z_dec.shape[3]))                         # z : [bs x nvars*k x seq_len]
+
         # do patching
         if self.padding_patch == 'end':
-            z = self.padding_patch_layer(z)
-        z = z.unfold(dimension=-1, size=self.patch_len, step=self.stride)                   # z: [bs x nvars x patch_num x patch_len]
-        z = z.permute(0,1,3,2)                                                              # z: [bs x nvars x patch_len x patch_num]
+            z_dec = self.padding_patch_layer(z_dec)
+        z_dec = z_dec.unfold(dimension=-1, size=self.patch_len, step=self.stride)                   # z: [bs x nvars*k x patch_num x patch_len]
+        z = z_dec.permute(0,1,3,2)                                                              # z: [bs x nvars*k x patch_len x patch_num]
         
         
         
         # model
-        z = self.backbone(z)                                                                # z: [bs x nvars x d_model x patch_num]
+        z = self.backbone(z)                                                                # z: [bs x nvars * k x d_model x patch_num]
+
+        z = self.compose(z)                                                                 #  z: [bs x nvars x d_model * k x patch_num]
         z = self.head(z)                                                                    # z: [bs x nvars x target_window] 
+        z = z.reshape()
         
         # denorm
         if self.revin: 
@@ -95,6 +104,43 @@ class PatchTST_backbone(nn.Module):
                     nn.Conv1d(head_nf, vars, 1)
                     )
 
+
+class Decomposer(torch.nn.Module):
+    def __init__(self):
+        super(Decomposer, self).__init__()
+
+    def emd_decomposition(self, signal):
+        t = np.linspace(0, 1, len(signal))
+        IMF = EMD().emd(signal, t)
+        return IMF
+
+    def forward(self, z_cd):
+        z_cd = z_cd[0]
+        bs, nvars, seq_len = z_cd.shape
+
+        z_dec_list = []
+
+        for i in range(bs):
+            batch_IMFs = []
+            for j in range(nvars):
+                single_signal = z_cd[i, j].cpu().numpy()  # This is a 1D signal of shape (200,)
+                IMF = self.emd_decomposition(single_signal)
+                batch_IMFs.append(IMF)
+            z_dec_list.append(batch_IMFs)
+
+        # Find maximum number of IMFs across all signals in the batch
+        max_imfs = max([len(imfs) for batch in z_dec_list for imfs in batch])
+
+        # Padding and converting z_dec_list to tensor
+        z_dec_tensor = torch.zeros(bs, nvars, max_imfs, seq_len)
+
+        for i in range(bs):
+            for j in range(nvars):
+                for k, imf in enumerate(z_dec_list[i][j]):
+                    z_dec_tensor[i, j, k, :len(imf)] = torch.tensor(imf)
+
+        return z_dec_tensor
+    
 class ChannelMixing(nn.Module):
     def __init__(self, patch_len, d_model,  padding_patch, num_features, n_layers = 1, n_heads = 1, res_attention=True, **kwargs):
         super().__init__()
