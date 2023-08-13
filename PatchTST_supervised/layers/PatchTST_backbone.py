@@ -51,12 +51,15 @@ class PatchTST_backbone(nn.Module):
 
         # Decomposer
         self.Decomposer = Decomposer()
+        
         # Head
         self.head_nf = d_model * patch_num
         self.n_vars = c_in
         self.pretrain_head = pretrain_head
         self.head_type = head_type
         self.individual = individual
+        # Composer
+        self.compose = Composer(nvars=self.n_vars) 
 
 
         if self.pretrain_head: 
@@ -74,7 +77,7 @@ class PatchTST_backbone(nn.Module):
 
         #blade
         z_cd = self.BladeFormer(z, epoch_num, batch_num)                            # z : [bs x nvars x seq_len]
-        z_dec = self.Decomposer(z_cd)                                               # z : [bs x nvars x k x seq_len]
+        z_dec, k = self.Decomposer(z_cd)                                               # z : [bs x nvars x k x seq_len]
         z_dec = torch.reshape(z_dec, (z_dec.shape[0],z_dec.shape[1]*z_dec.shape[2], z_dec.shape[3]))                         # z : [bs x nvars*k x seq_len]
 
         # do patching
@@ -88,8 +91,9 @@ class PatchTST_backbone(nn.Module):
         # model
         z = self.backbone(z)                                                                # z: [bs x nvars * k x d_model x patch_num]
 
-        z = self.compose(z)                                                                 #  z: [bs x nvars x d_model * k x patch_num]
-        z = self.head(z)                                                                    # z: [bs x nvars x target_window] 
+      
+        z = self.head(z)                                                                    # z: [bs x nvars * k x target_window] 
+        z = self.compose(z,k)                                                                 # z : [bs x nvars x target_window]
         z = z.reshape()
         
         # denorm
@@ -104,6 +108,20 @@ class PatchTST_backbone(nn.Module):
                     nn.Conv1d(head_nf, vars, 1)
                     )
 
+class Composer(torch.nn.Module):
+    def __init__(self, nvars):
+        super(Composer, self).__init__()
+        self.nvars = nvars
+
+    def forward(self, z_dec_tensor, k):
+        # Reshape the tensor to group the k IMFs for each nvars
+        z_reshaped = z_dec_tensor.view(-1, self.nvars, k, z_dec_tensor.size(-1))
+        
+        # Summing across the k IMFs
+        z_composed = z_reshaped.sum(dim=2)
+
+        return z_composed
+       
 
 class Decomposer(torch.nn.Module):
     def __init__(self):
@@ -139,7 +157,7 @@ class Decomposer(torch.nn.Module):
                 for k, imf in enumerate(z_dec_list[i][j]):
                     z_dec_tensor[i, j, k, :len(imf)] = torch.tensor(imf)
 
-        return z_dec_tensor
+        return z_dec_tensor, max_imfs
     
 class ChannelMixing(nn.Module):
     def __init__(self, patch_len, d_model,  padding_patch, num_features, n_layers = 1, n_heads = 1, res_attention=True, **kwargs):
