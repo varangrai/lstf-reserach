@@ -18,7 +18,7 @@ os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
 import warnings
 import matplotlib.pyplot as plt
 import numpy as np
-
+from custom_losses import FFTMSELoss
 warnings.filterwarnings('ignore')
 
 class Exp_Main(Exp_Basic):
@@ -49,8 +49,11 @@ class Exp_Main(Exp_Basic):
         model_optim = optim.Adam(self.model.parameters(), lr=self.args.learning_rate)
         return model_optim
 
-    def _select_criterion(self):
-        criterion = nn.MSELoss()
+    def _select_criterion(self, loss_type = 'mse'):
+        if loss_type == 'mse':
+            criterion = nn.MSELoss()
+        elif loss_type == 'fft':
+            criterion = FFTMSELoss()
         return criterion
 
     def vali(self, vali_data, vali_loader, criterion):
@@ -116,8 +119,8 @@ class Exp_Main(Exp_Basic):
         early_stopping = EarlyStopping(patience=self.args.patience, verbose=True)
 
         model_optim = self._select_optimizer()
-        criterion = self._select_criterion()
-
+        train_criterion = self._select_criterion(loss_type='fft')
+        test_criterion = self._select_criterion(loss_type='mse')
         if self.args.use_amp:
             scaler = torch.cuda.amp.GradScaler()
             
@@ -166,7 +169,7 @@ class Exp_Main(Exp_Basic):
                         f_dim = -1 if self.args.features == 'MS' else 0
                         outputs = outputs[:, -self.args.pred_len:, f_dim:]
                         batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
-                        loss = criterion(outputs, batch_y)
+                        loss = train_criterion(outputs, batch_y)
 
                         # if self.args.log_to_wandb:
                         #    wandb.log({'Batch Loss': loss.item()}, step=i+1)
@@ -185,7 +188,7 @@ class Exp_Main(Exp_Basic):
                     f_dim = -1 if self.args.features == 'MS' else 0
                     outputs = outputs[:, -self.args.pred_len:, f_dim:]
                     batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
-                    loss = criterion(outputs, batch_y)
+                    loss = train_criterion(outputs, batch_y)
                     # if self.args.log_to_wandb:
                     # wandb.log({'Train Batch Loss': loss.item()}, step=i+1)
                     train_loss.append(loss.item())
@@ -212,8 +215,8 @@ class Exp_Main(Exp_Basic):
             print("Epoch: {} cost time: {}".format(epoch + 1, time.time() - epoch_time))
             train_loss = np.average(train_loss)
 
-            vali_loss = self.vali(vali_data, vali_loader, criterion)
-            test_loss = self.vali(test_data, test_loader, criterion)
+            vali_loss = self.vali(vali_data, vali_loader, train_criterion)
+            test_loss = self.vali(test_data, test_loader, test_criterion)
 
             # log validation and test loss to wandb
             if self.args.log_to_wandb:
