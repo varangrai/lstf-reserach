@@ -94,7 +94,7 @@ class PatchTST_backbone(nn.Module):
       
         z = self.head(z)                                                                    # z: [bs x nvars * k x target_window] 
         z = self.compose(z,k)                                                                 # z : [bs x nvars x target_window]
-        z = z.reshape()
+
         
         # denorm
         if self.revin: 
@@ -133,7 +133,7 @@ class Decomposer(torch.nn.Module):
         return IMF
 
     def forward(self, z_cd):
-        z_cd = z_cd[0]
+        # z_cd = z_cd[0]
         bs, nvars, seq_len = z_cd.shape
 
         z_dec_list = []
@@ -141,7 +141,7 @@ class Decomposer(torch.nn.Module):
         for i in range(bs):
             batch_IMFs = []
             for j in range(nvars):
-                single_signal = z_cd[i, j].cpu().numpy()  # This is a 1D signal of shape (200,)
+                single_signal = z_cd[i, j].cpu().detach().numpy()  # This is a 1D signal of shape (200,)
                 IMF = self.emd_decomposition(single_signal)
                 batch_IMFs.append(IMF)
             z_dec_list.append(batch_IMFs)
@@ -157,7 +157,7 @@ class Decomposer(torch.nn.Module):
                 for k, imf in enumerate(z_dec_list[i][j]):
                     z_dec_tensor[i, j, k, :len(imf)] = torch.tensor(imf)
 
-        return z_dec_tensor, max_imfs
+        return z_dec_tensor.to("cuda:0"), max_imfs
     
 class ChannelMixing(nn.Module):
     def __init__(self, patch_len, d_model,  padding_patch, num_features, n_layers = 1, n_heads = 1, res_attention=True, **kwargs):
