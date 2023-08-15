@@ -45,7 +45,7 @@ class PatchTST_backbone(nn.Module):
                                 attn_mask=attn_mask, res_attention=res_attention, pre_norm=pre_norm, store_attn=store_attn,
                                 pe=pe, learn_pe=learn_pe, verbose=verbose, **kwargs)
         #BladeFormer
-        self.BladeFormer = ChannelMixing(patch_len, d_model, 1, padding_patch, log_to_wandb = self.log_to_wandb)
+        self.BladeFormer = ChannelMixing(context_window, d_model, 1, padding_patch, log_to_wandb = self.log_to_wandb)
         # Head
         self.head_nf = d_model * patch_num
         self.n_vars = c_in
@@ -110,28 +110,28 @@ class ChannelMixing(nn.Module):
         self.log_to_wandb = kwargs['log_to_wandb'] if 'log_to_wandb' in kwargs else False
 
     def forward(self , u, epoch_num, batch_num):                                                                      # z: [bs x nvars x seq_len]
-        orig_shape = u.shape
-        if self.padding_patch == 'end':                             
-            u = self.padding_patch_layer(u)
+        # orig_shape = u.shape
+        # if self.padding_patch == 'end':                             
+        #     u = self.padding_patch_layer(u)
         
-        u = u.unfold(dimension=-1, size=self.patch_len, step=self.patch_len)                    # z : [bs x nvar x patch_num x patch_len]
-        u = u.permute(0,2,1,3)                                                                  # z : [bs x patch_num x nvar x patch_len]
-        orig_u = u.clone()
-        patch_num = u.shape[1]                                                                  # z : [bs x patch_num x nvar x patch_len]
-        u = torch.reshape(u, (u.shape[0]*u.shape[1],u.shape[2],u.shape[3]))                     # z : [bs * patch_num x nvar x patch_len]
+        # u = u.unfold(dimension=-1, size=self.patch_len, step=self.patch_len)                    # z : [bs x nvar x patch_num x patch_len]
+        # u = u.permute(0,2,1,3)                                                                  # z : [bs x patch_num x nvar x patch_len]
+        # orig_u = u.clone()
+        # patch_num = u.shape[1]                                                                  # z : [bs x patch_num x nvar x patch_len]
+        # u = torch.reshape(u, (u.shape[0]*u.shape[1],u.shape[2],u.shape[3]))                     # z : [bs * patch_num x nvar x patch_len]
         u = self.W_P.forward(u)                                                                 # z : [bs * patch_num x nvar x d_model]
         u, attn = self.transformer(u)                                                           # z : [bs * patch_num x nvar x d_model]
         
         # attn is of shape [bs * patch_num x nvar x nvar] pick the ith element and plot to wandb.
 
         u = self.F_P.forward(u)                                                                 # z : [bs * patch_num x nvar x patch_len]
-        u = torch.reshape(u, (-1,patch_num,u.shape[-2],u.shape[-1]))                            # z : [bs x patch_num x nvar x patch_len]
-        if self.log_to_wandb and epoch_num %10 == 0:
-            self.log_attn_to_wandb(attn, orig_u, u)
-        u = u.permute(0,2,3,1)                                                                  # z : [bs x nvar x patch_num x patch_len]
-        u = torch.reshape(u, (u.shape[0],u.shape[1],u.shape[2]*u.shape[3]))                     # z : [bs x nvar x seq_len]
+        # u = torch.reshape(u, (-1,patch_num,u.shape[-2],u.shape[-1]))                            # z : [bs x patch_num x nvar x patch_len]
+        # if self.log_to_wandb and epoch_num %10 == 0:
+        #     self.log_attn_to_wandb(attn, orig_u, u)
+        # u = u.permute(0,2,3,1)                                                                  # z : [bs x nvar x patch_num x patch_len]
+        # u = torch.reshape(u, (u.shape[0],u.shape[1],u.shape[2]*u.shape[3]))                     # z : [bs x nvar x seq_len]
 
-        u = self.restore_shape(orig_shape, u)
+        # u = self.restore_shape(orig_shape, u)
         return u
     
     def restore_shape(self, orig_shape, u):
