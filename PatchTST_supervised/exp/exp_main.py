@@ -18,7 +18,7 @@ os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
 import warnings
 import matplotlib.pyplot as plt
 import numpy as np
-from custom_losses import FFTMSELoss
+from custom_losses import FFTAbsMSELoss, CombinedMSELoss, FFTRealMSELoss
 warnings.filterwarnings('ignore')
 
 class Exp_Main(Exp_Basic):
@@ -53,7 +53,7 @@ class Exp_Main(Exp_Basic):
         if loss_type == 'mse':
             criterion = nn.MSELoss()
         elif loss_type == 'fft':
-            criterion = FFTMSELoss()
+            criterion = CombinedMSELoss()
         return criterion
 
     def vali(self, vali_data, vali_loader, criterion):
@@ -222,7 +222,8 @@ class Exp_Main(Exp_Basic):
             if self.args.log_to_wandb:
                 wandb.log({'Validation/Epoch_Validation_Loss': vali_loss,
                     'Test/Epoch_Test_Loss': test_loss, 
-                    'Train/Train_Loss': train_loss})
+                    'Train/Train_Loss': train_loss,
+                    'Learning Rate': current_lr})
 
             loss_log['train_loss'].append(train_loss)
             loss_log['val_loss'].append(vali_loss)
