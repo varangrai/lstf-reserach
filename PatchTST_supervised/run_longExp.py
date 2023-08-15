@@ -100,17 +100,11 @@ if __name__ == "__main__":
 
     # Logging
     parser.add_argument('--log_to_wandb', action='store_true', default=False, help='use wandb or not')
-
+    parser.add_argument('--project_name', type=str, default='testing_Exp', help='exp_name')
     args = parser.parse_args()
 
     args_dict = vars(args)
-
-    if args_dict['log_to_wandb']:
-        wandb.init(
-            project="PatchTSTS-ChannelMixing",
-            name=args_dict['experiment_name'],
-            config=args_dict,
-        )
+    
 
     # random seed
     fix_seed = args.random_seed
@@ -119,7 +113,7 @@ if __name__ == "__main__":
     np.random.seed(fix_seed)
 
 
-    args.use_gpu = True if torch.backends.mps.is_available() and args.use_gpu else False
+    args.use_gpu = True if (torch.backends.mps.is_available() or torch.cuda.is_available()) and args.use_gpu else False
 
 
     if args.use_gpu and args.use_multi_gpu:
@@ -135,6 +129,12 @@ if __name__ == "__main__":
 
     if args.is_training:
         for ii in range(args.itr):
+            if args_dict['log_to_wandb']:
+                wandb.init(
+                    project=args_dict['project_name'],
+                    name=args_dict['experiment_name'],
+                    config=args_dict,
+                )
             # setting record of experiments
             setting = '{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_{}_{}'.format(
                 args.model_id,
@@ -157,13 +157,16 @@ if __name__ == "__main__":
             exp = Exp(args)  # set experiments
             print('>>>>>>>start training : {}>>>>>>>>>>>>>>>>>>>>>>>>>>'.format(setting))
             exp.train(setting)
+
             print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
             exp.test(setting)
+
             if args.do_predict:
                 print('>>>>>>>predicting : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
                 exp.predict(setting, True)
+            if args_dict['log_to_wandb']:
+                wandb.finish()
             torch.cuda.empty_cache()
-        wandb.finish()
     else:
         ii = 0
         setting = '{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_{}_{}'.format(args.model_id,
@@ -187,3 +190,4 @@ if __name__ == "__main__":
         print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
         exp.test(setting, test=1)
         torch.cuda.empty_cache()
+        wandb.finish()
