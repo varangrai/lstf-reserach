@@ -217,14 +217,14 @@ class Exp_Main(Exp_Basic):
 
             vali_loss = self.vali(vali_data, vali_loader, train_criterion)
             test_loss = self.vali(test_data, test_loader, test_criterion)
-
+            
             # log validation and test loss to wandb
             if self.args.log_to_wandb:
                 wandb.log({'Validation/Epoch_Validation_Loss': vali_loss,
                     'Test/Epoch_Test_Loss': test_loss, 
                     'Train/Train_Loss': train_loss,
                     'Learning Rate': current_lr})
-
+            
             loss_log['train_loss'].append(train_loss)
             loss_log['val_loss'].append(vali_loss)
             loss_log['test_loss'].append(test_loss)

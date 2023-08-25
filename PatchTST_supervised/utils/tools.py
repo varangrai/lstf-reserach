@@ -16,6 +16,7 @@ def adjust_learning_rate(optimizer, scheduler, epoch, args, printout=True):
             10: 5e-7, 15: 1e-7, 20: 5e-8
         }
     elif args.lradj == 'type3':
+        print("Learning rate ")
         lr_adjust = {epoch: args.learning_rate if epoch < 3 else args.learning_rate * (0.9 ** ((epoch - 3) // 1))}
     elif args.lradj == 'constant':
         lr_adjust = {epoch: args.learning_rate}

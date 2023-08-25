@@ -151,32 +151,6 @@ class Exp_Main(Exp_Basic):
                     f_dim = -1 if self.args.features == 'MS' else 0
                     batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
                     
-#                     if i==0:
-#                         from scipy import stats
-#                         pred = outputs.detach().cpu().numpy()
-#                         true = batch_y.detach().cpu().numpy()
-#                         input_data = batch_x.detach().cpu().numpy()
-#                         plot_index1=np.arange(input_data.shape[1])
-#                         plot_index2=np.arange(input_data.shape[1],input_data.shape[1]+pred.shape[1])
-#                         plt.cla()
-#                         plt.plot(plot_index1,input_data[0,:,-1:],label='input')
-#                         plt.plot(plot_index2,pred[0,:,-1:],label="predict")
-#                         plt.plot(plot_index2,true[0,:,-1:],label="true")
-#                         print('KS test1',stats.kstest(input_data[0,:,-1:].reshape(-1),pred[0,-input_data.shape[1]:,-1:].reshape(-1)))
-                        
-#                         plt.legend()
-#                         #f = io.BytesIO()
-#                         plt.savefig("sample0.png",format="png")
-#                         #plt.clf()
-#                         plt.cla()
-#                         plt.plot(plot_index1,input_data[8,:,-1:],label='input')
-#                         plt.plot(plot_index2,pred[8,:,-1:],label="predict")
-#                         plt.plot(plot_index2,true[8,:,-1:],label="true")
-#                         plt.legend()
-#                         plt.savefig("sample1.png",format="png")
-#                         print('KS test2',stats.kstest(input_data[8,:,-1:].reshape(-1),pred[8,-input_data.shape[1]:,-1:].reshape(-1)))
-#                         raise Exception('aaa')
-                    
                     
                     loss = criterion(outputs, batch_y)
                     train_loss.append(loss.item())
