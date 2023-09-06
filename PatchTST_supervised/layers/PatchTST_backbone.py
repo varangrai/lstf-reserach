@@ -68,19 +68,23 @@ class PatchTST_backbone(nn.Module):
             z = z.permute(0,2,1)
             z = self.revin_layer(z, 'norm')
             z = z.permute(0,2,1)
-
+        
         #blade
-        z = self.BladeFormer(z, epoch_num, batch_num)
+        z_dim_mix = self.BladeFormer(z, epoch_num, batch_num)
         # do patching
         if self.padding_patch == 'end':
             z = self.padding_patch_layer(z)
         z = z.unfold(dimension=-1, size=self.patch_len, step=self.stride)                   # z: [bs x nvars x patch_num x patch_len]
         z = z.permute(0,1,3,2)                                                              # z: [bs x nvars x patch_len x patch_num]
         
+        if self.padding_patch == 'end':
+            z_dim_mix = self.padding_patch_layer(z_dim_mix)
+        z_dim_mix = z_dim_mix.unfold(dimension=-1, size=self.patch_len, step=self.stride)                   # z: [bs x nvars x patch_num x patch_len]
+        z_dim_mix = z_dim_mix.permute(0,1,3,2)                                                              # z: [bs x nvars x patch_len x patch_num]
         
         
         # model
-        z = self.backbone(z)                                                                # z: [bs x nvars x d_model x patch_num]
+        z = self.backbone(z, z_dim_mix)                                                                # z: [bs x nvars x d_model x patch_num]
         z = self.head(z)                                                                    # z: [bs x nvars x target_window] 
         
         # denorm
@@ -260,7 +264,8 @@ class TSTiEncoder(nn.Module):  #i means channel-independent
         
         # Input encoding
         q_len = patch_num
-        self.W_P = nn.Linear(patch_len, d_model)        # Eq 1: projection of feature vectors onto a d-dim vector space
+        self.W_P_orign = nn.Linear(patch_len, d_model/2)        # Eq 1: projection of feature vectors onto a d-dim vector space
+        self.W_P_dim_mix = nn.Linear(patch_len, d_model/2)
         self.seq_len = q_len
 
         # Positional encoding
@@ -274,13 +279,15 @@ class TSTiEncoder(nn.Module):  #i means channel-independent
                                    pre_norm=pre_norm, activation=act, res_attention=res_attention, n_layers=n_layers, store_attn=store_attn)
 
         
-    def forward(self, x) -> Tensor:                                              # x: [bs x nvars x patch_len x patch_num]
+    def forward(self, x_orig, x_dim_mix) -> Tensor:                                              # x: [bs x nvars x patch_len x patch_num]
         
-        n_vars = x.shape[1]
+        n_vars = x_orig.shape[1]
         # Input encoding
-        x = x.permute(0,1,3,2)                                                   # x: [bs x nvars x patch_num x patch_len]
-        x = self.W_P(x)                                                          # x: [bs x nvars x patch_num x d_model]
-
+        x_orig = x_orig.permute(0,1,3,2)                                                   # x: [bs x nvars x patch_num x patch_len]
+        x_dim_mix = x_dim_mix.permute(0,1,3,2)
+        x_orig = self.W_P_orign(x_orig)                                                          # x: [bs x nvars x patch_num x d_model]
+        x_dim_mix = self.W_P_dim_mix(x_dim_mix)
+        x = torch.concat([x_orig, x_dim_mix], dim = -1)
         u = torch.reshape(x, (x.shape[0]*x.shape[1],x.shape[2],x.shape[3]))      # u: [bs * nvars x patch_num x d_model]
         u = self.dropout(u + self.W_pos)                                         # u: [bs * nvars x patch_num x d_model]
 
