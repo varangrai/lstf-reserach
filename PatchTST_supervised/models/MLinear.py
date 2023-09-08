@@ -58,11 +58,11 @@ class EfficientAttention(nn.Module):
         return attention
 
 class Model(nn.Module):
-    def __init__(self, num_channels, L, S, hidden_dim):
+    def __init__(self, num_channels, seq_len, pred_len, hidden_dim  = 128):
         
         # Dimensions
-        self.L = L
-        self.S = S
+        self.L = seq_len # seq len 
+        self.S = pred_len  # output len
         self.num_channels = num_channels
         
         # CI linear layers for each channel
