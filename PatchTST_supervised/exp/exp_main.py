@@ -128,6 +128,7 @@ class Exp_Main(Exp_Basic):
                                             epochs = self.args.train_epochs,
                                             max_lr = self.args.learning_rate)
         best_vali_loss = 1e9
+        print('Linear' in self.args.model)
         for epoch in range(self.args.train_epochs):
             iter_count = 0
             train_loss = []
@@ -157,7 +158,7 @@ class Exp_Main(Exp_Basic):
                 if self.args.use_amp:
                     with torch.cuda.amp.autocast():
                         if 'Linear' in self.args.model or 'TST' in self.args.model:
-                            outputs = self.model(batch_x, epoch, i)
+                            outputs = self.model(batch_x)
                         else:
                             if self.args.output_attention:
                                 outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)[0]
@@ -175,7 +176,7 @@ class Exp_Main(Exp_Basic):
                         train_loss.append(loss.item())
                 else:
                     if 'Linear' in self.args.model or 'TST' in self.args.model:
-                            outputs = self.model(batch_x, epoch, i)
+                            outputs = self.model(batch_x)
                     else:
                         if self.args.output_attention:
                             outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)[0]
