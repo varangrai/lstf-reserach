@@ -61,9 +61,8 @@ class Model(nn.Module):
     def __init__(self, configs, hidden_dim  = 128):
         super(Model, self).__init__() 
         # Dimensions
-        self.L = seq_len # seq len 
-        self.S = pred_len  # output len
-        self.num_channels = num_channels
+        self.L = configs.seq_len # seq len 
+        self.S = configs.pred_len  # output len
         self.num_channels = configs.enc_in
         
         # CI linear layers for each channel
