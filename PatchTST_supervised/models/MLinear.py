@@ -78,13 +78,14 @@ class Model(nn.Module):
         self.prediction = nn.Linear(self.S * 2, self.S)
         
     def forward(self, x):
+        x = x.permute(0,2,1)
         # CI transformations
-        ci_outputs = [self.ci_linears[i](x[:, i]) for i in range(self.num_channels)]
-        x_ci = torch.cat(ci_outputs, dim=-1)
+        ci_outputs = [self.ci_linears[i](x[:, i, :]) for i in range(self.num_channels)]
+
+        x_ci = torch.stack(ci_outputs, dim=1)
         
         # CD transformation
         x_cd = self.cd_linear(x)
-        
         # Efficient Attention modulation
         combined = torch.cat((x_ci, x_cd), dim=-1)
         context = self.efficient_attention(combined)
