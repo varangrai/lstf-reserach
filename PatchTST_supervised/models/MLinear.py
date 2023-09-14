@@ -58,10 +58,10 @@ class EfficientAttention(nn.Module):
         return attention
 
 class Model(nn.Module):
-    def __init__(self, configs, hidden_dim  = 128):
+    def __init__(self, configs, hidden_dim=128):
         super(Model, self).__init__()
         # Dimensions
-        self.L = configs.seq_len # seq len 
+        self.L = configs.seq_len  # seq len 
         self.S = configs.pred_len  # output len
         self.num_channels = configs.enc_in
         
@@ -72,28 +72,42 @@ class Model(nn.Module):
         self.cd_linear = nn.Linear(self.L, self.S)
         
         # Efficient Attention mechanism for CI and CD modulation
-        self.efficient_attention = EfficientAttention(self.S * 2,self.S * 2, 1, self.S * 2)
+        self.efficient_attention = EfficientAttention(self.num_channels + 1, self.S, 1, self.S)
             
         # Final prediction layer
-        self.prediction = nn.Linear(self.S * 2, self.S)
+        self.prediction = nn.Linear(self.S, self.S)
         
     def forward(self, x):
-        x = x.permute(0,2,1)
+        x = x.permute(0, 2, 1)  # Shape: (batch_size, num_channels, L)
+        
         # CI transformations
         ci_outputs = [self.ci_linears[i](x[:, i, :]) for i in range(self.num_channels)]
-
-        x_ci = torch.stack(ci_outputs, dim=1)
+        x_ci = torch.stack(ci_outputs, dim=1)  # Shape: (batch_size, num_channels, S)
         
         # CD transformation
-        x_cd = self.cd_linear(x)
+        x_cd = self.cd_linear(x)  # Shape: (batch_size, L, S)
+        x_cd = torch.mean(x_cd, dim=1, keepdim=True)  # Shape: (batch_size, 1, S)
+        
+        # Combine CI and CD
+        combined = torch.cat((x_ci, x_cd), dim=1)  # Shape: (batch_size, num_channels + 1, S)
+        
+        # Add a dummy spatial dimension for EfficientAttention
+        combined = combined.unsqueeze(3)  # Shape: (batch_size, num_channels + 1, S, 1)
+        
         # Efficient Attention modulation
-        combined = torch.cat((x_ci, x_cd), dim=-1)
         context = self.efficient_attention(combined)
+        
+        # Remove the dummy spatial dimension
+        context = context.squeeze(3)  # Shape: (batch_size, num_channels + 1, S)
+        
+        # Combine the context along the channel dimension
+        context = torch.mean(context, dim=1)  # Shape: (batch_size, S)
         
         # Final prediction
         out = self.prediction(context)
         
         return out
+
 
 # Loss function combining MAE and Huber loss
 def combined_loss(y_pred, y_true, sigma=1.0):
