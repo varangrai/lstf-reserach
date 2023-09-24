@@ -39,7 +39,7 @@ class PatchTST_backbone(nn.Module):
             patch_num += 1
 
         # Backbone 
-        self.backbone = TSTiEncoder(c_in, patch_num=patch_num, patch_len=patch_len, max_seq_len=max_seq_len,
+        self.backbone = TSTiEncoder(c_in, patch_num=patch_num*2, patch_len=patch_len, max_seq_len=max_seq_len,
                                 n_layers=n_layers, d_model=d_model, n_heads=n_heads, d_k=d_k, d_v=d_v, d_ff=d_ff,
                                 attn_dropout=attn_dropout, dropout=dropout, act=act, key_padding_mask=key_padding_mask, padding_var=padding_var,
                                 attn_mask=attn_mask, res_attention=res_attention, pre_norm=pre_norm, store_attn=store_attn,
@@ -68,16 +68,22 @@ class PatchTST_backbone(nn.Module):
             z = z.permute(0,2,1)
             z = self.revin_layer(z, 'norm')
             z = z.permute(0,2,1)
-
+        z_ci = z.copy()
         #blade
-        z = self.BladeFormer(z, epoch_num, batch_num)
+        z_cd = self.BladeFormer(z, epoch_num, batch_num)
         # do patching
         if self.padding_patch == 'end':
-            z = self.padding_patch_layer(z)
-        z = z.unfold(dimension=-1, size=self.patch_len, step=self.stride)                   # z: [bs x nvars x patch_num x patch_len]
-        z = z.permute(0,1,3,2)                                                              # z: [bs x nvars x patch_len x patch_num]
+            z_cd = self.padding_patch_layer(z_cd)
+        z_cd = z_cd.unfold(dimension=-1, size=self.patch_len, step=self.stride)                   # z: [bs x nvars x patch_num x patch_len]
+        z_cd = z_cd.permute(0,1,3,2)                                                              # z: [bs x nvars x patch_len x patch_num]
         
+        # do patching
+        if self.padding_patch == 'end':
+            z_ci = self.padding_patch_layer(z_ci)
+        z_ci = z_ci.unfold(dimension=-1, size=self.patch_len, step=self.stride)                   # z: [bs x nvars x patch_num x patch_len]
+        z_ci = z_ci.permute(0,1,3,2)                                                              # z: [bs x nvars x patch_len x patch_num]
         
+        z = torch.cat((z_ci, z_cd), dim=2)
         
         # model
         z = self.backbone(z)                                                                # z: [bs x nvars x d_model x patch_num]
