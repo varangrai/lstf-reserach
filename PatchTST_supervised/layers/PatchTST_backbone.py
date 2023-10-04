@@ -64,21 +64,19 @@ class PatchTST_backbone(nn.Module):
     
     def forward(self, z, epoch_num = 0, batch_num = 0):                                                                   # z: [bs x nvars x seq_len]
         # norm
-        if self.revin: 
-            z = z.permute(0,2,1)
+        if self.revin:
+            z = z.permute(0, 2, 1)
             z = self.revin_layer(z, 'norm')
-            z = z.permute(0,2,1)
-
-        #blade
-        z = self.BladeFormer(z, epoch_num, batch_num)
-        # do patching
+            z = z.permute(0, 2, 1)
+        z_ci = z.clone()
+        # blade
+        z_cd = self.BladeFormer(z, epoch_num, batch_num)
+        # concatenate z_ci and z_cd along the sequence length
+        z = torch.cat((z_ci, z_cd), dim=-1)  # z: [bs x nvars x 2*seq_len]
         if self.padding_patch == 'end':
             z = self.padding_patch_layer(z)
-        z = z.unfold(dimension=-1, size=self.patch_len, step=self.stride)                   # z: [bs x nvars x patch_num x patch_len]
-        z = z.permute(0,1,3,2)                                                              # z: [bs x nvars x patch_len x patch_num]
-        
-        
-        
+        z = z.unfold(dimension=-1, size=self.patch_len, step=self.stride)  # z: [bs x nvars x patch_num x patch_len]
+        z = z.permute(0, 1, 3, 2)  # z: [bs x nvars x patch_len x patch_num]
         # model
         z = self.backbone(z)                                                                # z: [bs x nvars x d_model x patch_num]
         z = self.head(z)                                                                    # z: [bs x nvars x target_window] 
