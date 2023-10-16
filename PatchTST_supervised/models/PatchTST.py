@@ -23,7 +23,7 @@ class Model(nn.Module):
         # load parameters
         c_in = configs.enc_in
         context_window = configs.seq_len
-        target_window = configs.pred_len
+        target_window = configs.pred_len + configs.seq_len
         
         n_layers = configs.e_layers
         n_heads = configs.n_heads
@@ -80,7 +80,6 @@ class Model(nn.Module):
     
     
     def forward(self, x, epoch_num = 0, batch_num = 0):           # x: [Batch, Input length, Channel]
-        x_ = x.clone()
         if self.decomposition:
             res_init, trend_init = self.decomp_module(x)
             res_init, trend_init = res_init.permute(0,2,1), trend_init.permute(0,2,1)  # x: [Batch, Channel, Input length]
@@ -92,4 +91,4 @@ class Model(nn.Module):
             x = x.permute(0,2,1)    # x: [Batch, Channel, Input length]
             x = self.model(x, epoch_num, batch_num)
             x = x.permute(0,2,1)    # x: [Batch, Input length, Channel]
-        return torch.concat((x_,x), 1)
+        return x
