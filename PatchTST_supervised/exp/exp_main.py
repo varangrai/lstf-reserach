@@ -185,6 +185,8 @@ class Exp_Main(Exp_Basic):
                     f_dim = -1 if self.args.features == 'MS' else 0
                     outputs = outputs[:, -self.args.pred_len:, f_dim:]
                     batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
+                    #change here
+                    batch_y = torch.concat((batch_x, batch_y),1)
                     loss = criterion(outputs, batch_y)
                     # if self.args.log_to_wandb:
                     # wandb.log({'Train Batch Loss': loss.item()}, step=i+1)

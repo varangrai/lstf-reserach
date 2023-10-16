@@ -80,6 +80,7 @@ class Model(nn.Module):
     
     
     def forward(self, x, epoch_num = 0, batch_num = 0):           # x: [Batch, Input length, Channel]
+        x_ = x.clone()
         if self.decomposition:
             res_init, trend_init = self.decomp_module(x)
             res_init, trend_init = res_init.permute(0,2,1), trend_init.permute(0,2,1)  # x: [Batch, Channel, Input length]
@@ -91,4 +92,4 @@ class Model(nn.Module):
             x = x.permute(0,2,1)    # x: [Batch, Channel, Input length]
             x = self.model(x, epoch_num, batch_num)
             x = x.permute(0,2,1)    # x: [Batch, Input length, Channel]
-        return x
+        return torch.concat((x_,x), 1)
