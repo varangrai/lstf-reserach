@@ -47,6 +47,7 @@ class Model(nn.Module):
         decomposition = configs.decomposition
         kernel_size = configs.kernel_size
         
+        num_classes = configs.num_classes
         
         # model
         self.decomposition = decomposition
@@ -91,4 +92,9 @@ class Model(nn.Module):
             x = x.permute(0,2,1)    # x: [Batch, Channel, Input length]
             x = self.model(x, epoch_num, batch_num)
             x = x.permute(0,2,1)    # x: [Batch, Input length, Channel]
-        return x
+            
+        x = x.permute(0,2,1)    # x: [Batch, Channel, Input length]    
+        x = nn.Linear(x.size(-1), num_classes)(x)
+        x = torch.softmax(x, dim=1)
+        
+        return x                    # Output shape: [Batch, num_classes]
